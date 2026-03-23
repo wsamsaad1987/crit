@@ -1,0 +1,172 @@
+name: Imperial Ultimate Fortress - V-MAX 10-Point Armor
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build_elite_artifact:
+    name: Build Professional Cyber-Security Shield
+    runs-on: macos-latest
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🛠️ Setup Dobby Engine (The Real Hooking Engine)
+        run: |
+          echo "Building Dobby for iOS ARM64..."
+          git clone --depth 1 https://github.com/jmpews/Dobby.git
+          mkdir -p Dobby/build && cd Dobby/build
+          cmake .. -DDOBBY_GENERATE_SHARED=OFF -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_SYSTEM_NAME=iOS
+          make -j$(sysctl -n hw.ncpu)
+          cd ../.. && mkdir -p include && cp Dobby/include/dobby.h include/
+
+      - name: 🧪 Generate Master Source (Main.mm)
+        run: |
+          mkdir -p jni
+          cat <<'EOF' > jni/main.mm
+          #import <Foundation/Foundation.h>
+          #import <UIKit/UIKit.h>
+          #import <objc/runtime.h>
+          #import <dlfcn.h>
+          #import <mach-o/dyld.h>
+          #include "dobby.h"
+
+          /**
+           * 🛡️ PROJECT: IMPERIAL ULTIMATE FORTRESS (10-POINT ARMOR)
+           * 👨‍💻 LEAD RESEARCHER: MASOUD (NASIRIYAH)
+           * 🛡️ SCOPE: TOTAL DECEPTION & ANTI-DETECTION
+           */
+
+          static void* (*orig_dlsym)(void* handle, const char* symbol);
+          static const char* (*orig_dyld_get_image_name)(uint32_t image_index);
+          typedef BOOL (*fileExistsAtPath_t)(id, SEL, NSString *);
+          static fileExistsAtPath_t orig_fileExistsAtPath;
+
+          // --- [1, 2, 3] تزييف الهوية، الموديل، وإصدار النظام ---
+          void SetupIdentitySpoof() {
+              // 1. تزييف Bundle ID
+              method_setImplementation(class_getInstanceMethod([NSBundle class], @selector(bundleIdentifier)), 
+                  imp_implementationWithBlock(^NSString* (id self) { return @"com.tencent.ig"; }));
+              
+              // 2. تزييف موديل الجهاز
+              method_setImplementation(class_getInstanceMethod([UIDevice class], @selector(model)), 
+                  imp_implementationWithBlock(^NSString* (id self) { return @"iPad"; }));
+              method_setImplementation(class_getInstanceMethod([UIDevice class], @selector(name)), 
+                  imp_implementationWithBlock(^NSString* (id self) { return @"iPad Pro (12.9-inch)"; }));
+              
+              // 3. تزييف إصدار النظام
+              method_setImplementation(class_getInstanceMethod([UIDevice class], @selector(systemVersion)), 
+                  imp_implementationWithBlock(^NSString* (id self) { return @"17.4"; }));
+          }
+
+          // --- [4, 5] تزييف الرامات والمعالج (Hardware) ---
+          void SetupHardwareSpoof() {
+              // 4. تزييف الرامات (16GB)
+              method_setImplementation(class_getInstanceMethod([NSProcessInfo class], @selector(physicalMemory)), 
+                  imp_implementationWithBlock(^unsigned long long(id self) { return 17179869184ULL; }));
+              
+              // 5. تزييف الأنوية (8 Cores)
+              method_setImplementation(class_getInstanceMethod([NSProcessInfo class], @selector(activeProcessorCount)), 
+                  imp_implementationWithBlock(^NSUInteger(id self) { return 8; }));
+          }
+
+          // --- [6, 7] تزييف الشهادة وإيصال المتجر ---
+          void SetupCertificateSpoof() {
+              // 6. تزييف هوية الموقع (Signer Identity)
+              Method m_info = class_getInstanceMethod([NSBundle class], @selector(infoDictionary));
+              IMP orig_info = method_getImplementation(m_info);
+              method_setImplementation(m_info, imp_implementationWithBlock(^NSDictionary* (id self) {
+                  NSMutableDictionary *dict = [((NSDictionary*(*)(id, SEL))orig_info)(self, @selector(infoDictionary)) mutableCopy];
+                  [dict setObject:@"Apple iPhone OS Application Signer" forKey:@"SignerIdentity"];
+                  [dict setObject:@"com.apple.itunes.store" forKey:@"AppStoreInstaller"];
+                  return dict;
+              }));
+
+              // 7. تزييف إيصال الشراء (Receipt)
+              method_setImplementation(class_getInstanceMethod([NSBundle class], @selector(appStoreReceiptURL)), 
+                  imp_implementationWithBlock(^NSURL* (id self) {
+                      return [NSURL fileURLWithPath:@"/System/Library/PrivateFrameworks/StoreServices.framework/receipt"];
+                  }));
+          }
+
+          // --- [8] تزييف الروابط (URL Redirection) ---
+          void SetupURLSpoof() {
+              Method m_url = class_getClassMethod([NSURL class], @selector(URLWithString:));
+              method_setImplementation(m_url, imp_implementationWithBlock(^NSURL* (id self, NSString *urlStr) {
+                  if ([urlStr containsString:@"tencent"] || [urlStr containsString:@"ask"]) {
+                      return [NSURL URLWithString:@"http://127.0.0.1"]; // توجيه صامت للعمى
+                  }
+                  return [NSURL URLWithString:urlStr];
+              }));
+          }
+
+          // --- [9] إخفاء الدخلاء (dlsym Hook - IDA Solution) ---
+          const char* hk_dyld_get_image_name(uint32_t image_index) {
+              const char* real_name = orig_dyld_get_image_name(image_index);
+              // إخفاء الدايلب من الذاكرة الخام
+              if (real_name && (strstr(real_name, "Masoud") || strstr(real_name, "ali"))) {
+                  return "/usr/lib/libobjc.A.dylib";
+              }
+              return real_name;
+          }
+
+          void* hk_dlsym(void* handle, const char* symbol) {
+              if (symbol && strcmp(symbol, "_dyld_get_image_name") == 0) return (void*)hk_dyld_get_image_name;
+              return orig_dlsym(handle, symbol);
+          }
+
+          // --- [10] درع الملفات (File Shield) ---
+          BOOL hk_fileExistsAtPath(id self, SEL _cmd, NSString *path) {
+              if ([path containsString:@"embedded.mobileprovision"] || [path containsString:@"Cydia"]) {
+                  return NO; // خداع التطبيق بأن ملفات التوقيع غير موجودة
+              }
+              return orig_fileExistsAtPath(self, _cmd, path);
+          }
+
+          // --- [🚀 تشغيل الترسانة الكاملة] ---
+          __attribute__((constructor(101)))
+          static void activate_ultimate_vmax() {
+              SetupIdentitySpoof();
+              SetupHardwareSpoof();
+              SetupCertificateSpoof();
+              SetupURLSpoof();
+
+              // تفعيل الـ Hooking لـ dlsym (علاج صورة IDA)
+              void* dlsym_ptr = dlsym(RTLD_DEFAULT, "dlsym");
+              orig_dyld_get_image_name = (const char* (*)(uint32_t))dlsym(RTLD_DEFAULT, "_dyld_get_image_name");
+              if (dlsym_ptr) {
+                  DobbyHook(dlsym_ptr, (void*)hk_dlsym, (void**)&orig_dlsym);
+              }
+
+              // تفعيل درع الملفات
+              Method m_file = class_getInstanceMethod([NSFileManager class], @selector(fileExistsAtPath:));
+              orig_fileExistsAtPath = (fileExistsAtPath_t)method_getImplementation(m_file);
+              method_setImplementation(m_file, imp_implementationWithBlock(^BOOL (id self, NSString *path) {
+                  return hk_fileExistsAtPath(self, @selector(fileExistsAtPath:), path);
+              }));
+
+              NSLog(@"[V-MAX] 🏰 منظومة الـ 10 نقاط مفعلة بالكامل.. إعماء تام للحماية.");
+          }
+          EOF
+
+      - name: 🚀 Build Elite Artifact
+        run: |
+          clang++ -dynamiclib -std=c++11 -x objective-c++ \
+          -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
+          -arch arm64 jni/main.mm \
+          -I./include Dobby/build/libdobby.a \
+          -o Masoud-Ultimate-Elite.dylib \
+          -framework Foundation -framework UIKit -lobjc \
+          -install_name @rpath/Masoud-Ultimate-Elite.dylib
+          
+          # مسح الرموز الدلالية لزيادة التخفي
+          strip -x Masoud-Ultimate-Elite.dylib
+
+      - name: 📦 Archive Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Masoud-Elite-10Point-Package
+          path: Masoud-Ultimate-Elite.dylib
