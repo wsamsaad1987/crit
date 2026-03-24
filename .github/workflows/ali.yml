@@ -1,4 +1,4 @@
-name: Imperial V-MAX - Chameleon Shield (Radar + Spoof)
+name: Imperial V-MAX - Truth Radar & Spoofer
 
 on:
   push:
@@ -6,66 +6,69 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_chameleon:
-    name: Compile Chameleon Shield Dylib
+  build_truth_radar:
+    name: Compile Truth Radar Dylib
     runs-on: macos-latest
 
     steps:
-      - name: 📥 Checkout Repository
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: 🎣 Fetch Fishhook (Safe Hooking)
+      - name: Fetch Fishhook
         run: |
           mkdir -p jni
           curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.c -o jni/fishhook.c
           curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.h -o jni/fishhook.h
 
-      - name: 🧪 Generate Chameleon Source (Main.mm)
+      - name: Generate Radar Payload (Main.mm)
         run: |
           cat <<'EOF' > jni/main.mm
           #import <Foundation/Foundation.h>
           #import <UIKit/UIKit.h>
           #import <objc/runtime.h>
-          #import <sys/stat.h>
           #import <dlfcn.h>
-          #import <mach-o/dyld.h>
+          #import <sys/socket.h>
+          #import <arpa/inet.h>
           #include "fishhook.h"
 
-          /**
-           * 🛡️ PROJECT: THE CHAMELEON SHIELD (RADAR + HEAVY SPOOFING)
-           * 👨‍💻 RESEARCHER: MASOUD (NASIRIYAH)
-           * 🎯 GOAL: Protect the RET Patch (C0035FD6) & Monitor Activity
-           */
-
           // ⚠️ رابط سيرفر مسعود
-          #define RADAR_SERVER_URL @"http://44.192.33.117:8080"
+          #define RADAR_IP "44.192.33.117"
+          #define RADAR_PORT 8080
 
-          // ==========================================
-          // 📡 نظام الرادار والإرسال
-          // ==========================================
-          void SendToRadar(NSString *action, NSString *target, NSString *threatLevel) {
+          /**
+           * ========================================================
+           * 🛡️ MASOUD TRUTH RADAR (NETWORK MONITOR + HEAVY SPOOF)
+           * ========================================================
+           */
+           
+          static NSMutableSet* g_reported_logs = nil;
+
+          // 📡 الإرسال للسيرفر (الترمنال)
+          void SendToRadar(NSString *type, NSString *target) {
               dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
-                  NSDictionary *payload = @{
-                      @"func": action,
-                      @"target": target,
-                      @"threat": threatLevel,
-                      @"caller": @"System_Shield"
-                  };
-                  NSData *jsonData = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];
-                  if (jsonData) {
-                      NSURL *url = [NSURL URLWithString:RADAR_SERVER_URL];
-                      NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
-                      [req setHTTPMethod:@"POST"];
-                      [req setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
-                      [req setHTTPBody:jsonData];
-                      req.timeoutInterval = 3.0; // مهلة قصيرة لمنع اللاك
-                      [[[NSURLSession sharedSession] dataTaskWithRequest:req] resume];
+                  NSString* uniqueKey = [NSString stringWithFormat:@"%@_%@", type, target];
+                  @synchronized(g_reported_logs) {
+                      if ([g_reported_logs containsObject:uniqueKey]) return;
+                      [g_reported_logs addObject:uniqueKey];
                   }
+
+                  NSDictionary *payload = @{ @"func": type, @"target": target, @"caller": @"System_Radar" };
+                  NSData *jsonData = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];
+                  if (!jsonData) return;
+                  
+                  int sock = socket(AF_INET, SOCK_STREAM, 0);
+                  if (sock < 0) return;
+                  struct sockaddr_in srv;
+                  srv.sin_family = AF_INET; srv.sin_port = htons(RADAR_PORT);
+                  inet_pton(AF_INET, RADAR_IP, &srv.sin_addr);
+                  struct timeval tv = {1, 0}; setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+                  if (connect(sock, (struct sockaddr *)&srv, sizeof(srv)) == 0) send(sock, [jsonData bytes], [jsonData length], 0);
+                  close(sock);
               });
           }
 
           // ==========================================
-          // 🎭 التمويه العميق (Objective-C Swizzling)
+          // 🎭 التمويه العميق (Spoofing)
           // ==========================================
           void SafeSwizzle(Class c, SEL orig, IMP newImp, IMP* oldImp) {
               Method m = class_getInstanceMethod(c, orig);
@@ -73,106 +76,86 @@ jobs:
               if (m) { *oldImp = method_getImplementation(m); method_setImplementation(m, newImp); }
           }
 
-          // 1. تزييف الروابط (منع تقارير الباند الـ 10 دقايق)
+          // تزييف روابط الإنترنت (مراقبة ما يرسله الجاسوس للسيرفر)
           typedef id (*URLWithString_t)(id, SEL, NSString *);
           static URLWithString_t orig_URLWithString;
           id hk_URLWithString(id self, SEL _cmd, NSString *urlStr) {
               if (urlStr && [urlStr isKindOfClass:[NSString class]]) {
-                  // تحويل روابط التجسس إلى لوكال هوست
-                  if ([urlStr containsString:@"tdatamaster"] || [urlStr containsString:@"crashsight"] || [urlStr containsString:@"anogs"]) {
-                      SendToRadar(@"BLOCKED_URL", urlStr, @"WARNING");
-                      return orig_URLWithString(self, _cmd, @"http://127.0.0.1");
+                  // إذا كان الرابط يخص حماية اللعبة، نرسله للترمنال فوراً!
+                  if ([urlStr containsString:@"tencent"] || [urlStr containsString:@"tdatamaster"] || [urlStr containsString:@"crashsight"]) {
+                      SendToRadar(@"NETWORK_URL", urlStr);
                   }
               }
               return orig_URLWithString(self, _cmd, urlStr);
           }
 
           // ==========================================
-          // 🛡️ التمويه الهيكلي (C-Functions Hooking)
+          // 👁️ خطافات المراقبة (C-Hooks)
           // ==========================================
           static void* (*orig_dlsym)(void* handle, const char* symbol);
-          static const char* (*orig_dyld_get_image_name)(uint32_t image_index);
-          static int (*orig_access)(const char *path, int amode);
+          static FILE* (*orig_fopen)(const char *filename, const char *mode);
 
-          // 2. إخفاء الدايلب من الذاكرة
-          const char* hk_dyld_get_image_name(uint32_t image_index) {
-              const char* real_name = orig_dyld_get_image_name(image_index);
-              if (real_name && (strstr(real_name, "Masoud") || strstr(real_name, "Chameleon"))) {
-                  return "/usr/lib/libobjc.A.dylib"; // اسم وهمي نقي
-              }
-              return real_name;
-          }
-
-          // 3. إعماء الحماية عن أدوات الجلبريك والـ Fishhook
           void* hk_dlsym(void* handle, const char* symbol) {
-              if (!symbol) return orig_dlsym(handle, symbol);
-
-              // إخفاء الدايلب
-              if (strcmp(symbol, "_dyld_get_image_name") == 0) {
-                  return (void*)hk_dyld_get_image_name;
-              }
-
-              // حجب أدوات الهاك
-              NSString *symStr = [NSString stringWithUTF8String:symbol];
-              NSArray *cheats = @[@"ptrace", @"MSHook", @"Substrate", @"fishhook", @"Cydia"];
-              for (NSString *cheat in cheats) {
-                  if ([symStr containsString:cheat]) {
-                      SendToRadar(@"BLOCKED_DLSYM", symStr, @"CRITICAL");
-                      return NULL; // نرجع NULL كأن الأداة غير موجودة
+              if (symbol) {
+                  NSString *symStr = [NSString stringWithUTF8String:symbol];
+                  NSArray *cheats = @[@"ptrace", @"MSHook", @"Substrate", @"fishhook", @"Cydia"];
+                  for (NSString *cheat in cheats) {
+                      if ([symStr containsString:cheat]) {
+                          SendToRadar(@"BLOCKED_DLSYM", symStr);
+                          return NULL; // تمويه: نعمي الجاسوس عن الهاك
+                      }
                   }
               }
               return orig_dlsym(handle, symbol);
           }
 
-          // 4. إخفاء الملفات الحساسة
-          int hk_access(const char *path, int amode) {
-              if (path) {
-                  NSString *pathStr = [NSString stringWithUTF8String:path];
-                  if ([pathStr containsString:@"Cydia"] || [pathStr containsString:@"Masoud"] || [pathStr containsString:@"embedded.mobileprovision"]) {
-                      SendToRadar(@"BLOCKED_FILE", pathStr, @"WARNING");
-                      return -1; // -1 تعني أن الملف غير موجود
+          FILE* hk_fopen(const char *filename, const char *mode) {
+              if (filename) {
+                  NSString *fileStr = [NSString stringWithUTF8String:filename];
+                  if ([fileStr containsString:@"Cydia"] || [fileStr containsString:@"TDM_KV"] || [fileStr containsString:@"Masoud"]) {
+                      SendToRadar(@"BLOCKED_FILE", fileStr);
+                      return NULL; // تمويه: نمنع قراءة الملفات المشبوهة
                   }
               }
-              return orig_access(path, amode);
+              return orig_fopen(filename, mode);
           }
 
           // ==========================================
-          // 🚀 نقطة التشغيل
+          // 🚀 التشغيل
           // ==========================================
           __attribute__((constructor))
-          static void deploy_chameleon_shield() {
+          static void deploy_truth_radar() {
+              g_reported_logs = [[NSMutableSet alloc] init];
+              
               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                   
-                  // تفعيل تمويه الروابط
+                  // تفعيل التمويه وتزييف الهوية
                   SafeSwizzle([NSURL class], @selector(URLWithString:), (IMP)hk_URLWithString, (IMP*)&orig_URLWithString);
-
-                  // تفعيل تمويه الذاكرة والملفات
-                  orig_dyld_get_image_name = (const char* (*)(uint32_t))dlsym(RTLD_DEFAULT, "_dyld_get_image_name");
+                  method_setImplementation(class_getInstanceMethod([UIDevice class], @selector(model)), imp_implementationWithBlock(^NSString* (id self) { return @"iPad"; }));
                   
+                  // تفعيل خطافات المراقبة
                   struct rebinding rebinds[] = {
                       {"dlsym", (void *)hk_dlsym, (void **)&orig_dlsym},
-                      {"access", (void *)hk_access, (void **)&orig_access}
+                      {"fopen", (void *)hk_fopen, (void **)&orig_fopen}
                   };
                   rebind_symbols(rebinds, 2);
 
-                  // إرسال إشارة الحياة للرادار
-                  SendToRadar(@"RADAR_INIT", @"Chameleon Shield Active", @"INFO");
-                  NSLog(@"[MASOUD LAB] 🦎 Chameleon Shield Deployed Successfully.");
+                  SendToRadar(@"SYSTEM_INIT", @"Truth Radar & Spoofer Active!");
+                  NSLog(@"[MASOUD LAB] 🦅 Truth Radar Deployed.");
               });
           }
           EOF
 
-      - name: 🚀 Compile Chameleon Dylib
+      - name: Compile Truth Radar
         run: |
           clang++ -dynamiclib -std=c++11 -arch arm64 \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-          jni/main.mm jni/fishhook.c \
-          -o Masoud-Chameleon-Shield.dylib \
+          jni/main.mm jni/fishhook.c -o Masoud-Truth-Radar.dylib \
           -framework Foundation -framework UIKit -lobjc
-          strip -x Masoud-Chameleon-Shield.dylib
+          strip -x Masoud-Truth-Radar.dylib
 
-      - name: 📦 Upload Final Artifact
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Masoud-Chameleon-Shield
-          path: Masoud-Chameleon-Shield.dylib
+          name: Masoud-Truth-Radar
+          path: Masoud-Truth-Radar.dylib
