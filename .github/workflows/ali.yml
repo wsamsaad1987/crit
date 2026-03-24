@@ -26,115 +26,125 @@ jobs:
 
           /**
            * ========================================================
-           * 🛡️ MASOUD CONFIG HIJACKER + RADAR (NO-JB SAFE)
-           * 🎯 يخترق أوامر Tencent ويرسل تقارير حية للرادار
+           * 🛡️ MASOUD CONFIG HIJACKER + RADAR (BULLETPROOF V2)
+           * 🎯 يخترق أوامر Tencent بأمان تام ولا يسبب فشل تسجيل الدخول
            * ========================================================
            */
 
-          // ⚠️ رابط سيرفر مسعود
+          // ⚠️ رابط سيرفر مسعود (RDP)
           #define C2_IP "44.192.33.117"
           #define C2_PORT 8080
 
-          // 📡 إرسال البيانات للترمنال
+          // 📡 إرسال البيانات للترمنال عبر Raw TCP Socket (آمن وسريع)
           void SendToRadar(NSString *funcName, NSString *targetInfo) {
               dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
-                  NSDictionary *data = @{
-                      @"func": funcName,
-                      @"target": targetInfo,
-                      @"caller": @"JSON_Hijacker",
-                      @"threat": @"INFO"
-                  };
-                  NSData *json = [NSJSONSerialization dataWithJSONObject:data options:0 error:nil];
-                  if (!json) return;
-                  
-                  int sock = socket(AF_INET, SOCK_STREAM, 0);
-                  if (sock < 0) return;
-                  
-                  struct sockaddr_in srv;
-                  srv.sin_family = AF_INET; 
-                  srv.sin_port = htons(C2_PORT);
-                  inet_pton(AF_INET, C2_IP, &srv.sin_addr);
-                  
-                  struct timeval tv = {1, 0}; 
-                  setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
-                  
-                  if (connect(sock, (struct sockaddr *)&srv, sizeof(srv)) == 0) {
-                      send(sock, [json bytes], [json length], 0);
+                  @try {
+                      NSDictionary *data = @{
+                          @"func": funcName,
+                          @"target": targetInfo,
+                          @"caller": @"Masoud_Hijacker",
+                          @"threat": @"INFO"
+                      };
+                      NSData *json = [NSJSONSerialization dataWithJSONObject:data options:0 error:nil];
+                      if (!json) return;
+                      
+                      int sock = socket(AF_INET, SOCK_STREAM, 0);
+                      if (sock < 0) return;
+                      
+                      struct sockaddr_in srv;
+                      srv.sin_family = AF_INET; 
+                      srv.sin_port = htons(C2_PORT);
+                      inet_pton(AF_INET, C2_IP, &srv.sin_addr);
+                      
+                      // مهلة ثانية واحدة فقط حتى لا يسبب تقطيع باللعبة
+                      struct timeval tv = {1, 0}; 
+                      setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+                      
+                      if (connect(sock, (struct sockaddr *)&srv, sizeof(srv)) == 0) {
+                          send(sock, [json bytes], [json length], 0);
+                      }
+                      close(sock);
+                  } @catch (NSException *e) {
+                      // التجاهل الصامت في حال فشل الشبكة
                   }
-                  close(sock);
               });
           }
 
           // حفظ الدالة الأصلية لقراءة الـ JSON
           static id (*orig_JSONObjectWithData)(Class, SEL, NSData *, NSJSONReadingOptions, NSError **);
 
-          // 🔄 الدالة المخترقة (تعترض الملفات وتعدلها)
+          // 🔄 الدالة المخترقة (المحصنة ضد الكراش)
           id hk_JSONObjectWithData(Class self, SEL _cmd, NSData *data, NSJSONReadingOptions opt, NSError **err) {
+              // 1. تشغيل الدالة الأصلية والسماح لتسجيل الدخول بالمرور بسلام
               id result = orig_JSONObjectWithData(self, _cmd, data, opt, err);
 
-              if ([result isKindOfClass:[NSDictionary class]]) {
-                  NSDictionary *dict = (NSDictionary *)result;
+              // 2. درع الحماية من الكراش (إذا فشل الاختراق، ترجع النتيجة الأصلية)
+              @try {
+                  if ([result isKindOfClass:[NSDictionary class]]) {
+                      NSDictionary *dict = (NSDictionary *)result;
 
-                  // 3. نفحص: هل هذا هو ملف getconfig؟
-                  if (dict[@"biz_data"] && dict[@"biz_data"][@"merged_cfg"]) {
-                      
-                      NSMutableDictionary *mDict = [dict mutableCopy];
-                      NSMutableDictionary *bizData = [mDict[@"biz_data"] mutableCopy];
-                      NSMutableDictionary *mergedCfg = [bizData[@"merged_cfg"] mutableCopy];
+                      // 3. هل هذا هو ملف الجاسوس (getconfig)؟
+                      if (dict[@"biz_data"] && dict[@"biz_data"][@"merged_cfg"]) {
+                          
+                          // 🔥 السر الهندسي: إعادة تحويل البيانات إلى صيغة "قابلة للتعديل 100%"
+                          NSData *rawDictData = [NSJSONSerialization dataWithJSONObject:dict options:0 error:nil];
+                          NSMutableDictionary *mDict = [NSJSONSerialization JSONObjectWithData:rawDictData options:NSJSONReadingMutableContainers error:nil];
 
-                      for (NSString *key in [mergedCfg allKeys]) {
-                          id innerVal = mergedCfg[key];
-                          if ([innerVal isKindOfClass:[NSDictionary class]]) {
-                              NSMutableDictionary *innerDict = [innerVal mutableCopy];
+                          if (mDict && mDict[@"biz_data"] && mDict[@"biz_data"][@"merged_cfg"]) {
+                              NSMutableDictionary *mergedCfg = mDict[@"biz_data"][@"merged_cfg"];
 
-                              // 🔥 تدمير أوامر التجسس والمراقبة!
-                              if (innerDict[@"GEnableUploadStatInfo"]) innerDict[@"GEnableUploadStatInfo"] = @"false";
-                              if (innerDict[@"XPCallReportCrashKitBattle"]) innerDict[@"XPCallReportCrashKitBattle"] = @"false";
-                              if (innerDict[@"XPCallReportCrashKitBattleTrace"]) innerDict[@"XPCallReportCrashKitBattleTrace"] = @"false";
-                              if (innerDict[@"USFSKickoutPkgName"]) innerDict[@"USFSKickoutPkgName"] = @"";
-                              if (innerDict[@"USFSKickoutPkgName_1"]) innerDict[@"USFSKickoutPkgName_1"] = @"";
-                              if (innerDict[@"EnableClientInGameReplay"]) innerDict[@"EnableClientInGameReplay"] = @"0";
+                              for (NSString *key in [mergedCfg allKeys]) {
+                                  if ([mergedCfg[key] isKindOfClass:[NSMutableDictionary class]]) {
+                                      NSMutableDictionary *innerDict = mergedCfg[key];
 
-                              mergedCfg[key] = innerDict;
+                                      // 💣 إعدام أوامر المراقبة والتجسس
+                                      if (innerDict[@"GEnableUploadStatInfo"]) innerDict[@"GEnableUploadStatInfo"] = @"false";
+                                      if (innerDict[@"XPCallReportCrashKitBattle"]) innerDict[@"XPCallReportCrashKitBattle"] = @"false";
+                                      if (innerDict[@"XPCallReportCrashKitBattleTrace"]) innerDict[@"XPCallReportCrashKitBattleTrace"] = @"false";
+                                      if (innerDict[@"USFSKickoutPkgName"]) innerDict[@"USFSKickoutPkgName"] = @"";
+                                      if (innerDict[@"USFSKickoutPkgName_1"]) innerDict[@"USFSKickoutPkgName_1"] = @"";
+                                      if (innerDict[@"EnableClientInGameReplay"]) innerDict[@"EnableClientInGameReplay"] = @"0";
+                                  }
+                              }
+
+                              // 💣 تدمير نظام فحص الهاردوير (GEM)
+                              if (mDict[@"GEM"] && [mDict[@"GEM"] isKindOfClass:[NSMutableDictionary class]]) {
+                                  NSMutableDictionary *gemDict = mDict[@"GEM"];
+                                  gemDict[@"cpu"] = @"0";
+                                  gemDict[@"battery"] = @"0";
+                                  gemDict[@"netflow"] = @"0";
+                                  gemDict[@"ping"] = @"0";
+                              }
+
+                              SendToRadar(@"GETCONFIG_HIJACKED", @"Tencent Orders Destroyed! ✅");
+                              return mDict; // إرجاع الملف النظيف للعبة
                           }
                       }
-
-                      // تدمير نظام (GEM) لمراقبة المعالج
-                      if (mDict[@"GEM"]) {
-                          NSMutableDictionary *gemDict = [mDict[@"GEM"] mutableCopy];
-                          gemDict[@"cpu"] = @"0";
-                          gemDict[@"battery"] = @"0";
-                          gemDict[@"netflow"] = @"0";
-                          gemDict[@"ping"] = @"0";
-                          mDict[@"GEM"] = gemDict;
-                      }
-
-                      bizData[@"merged_cfg"] = mergedCfg;
-                      mDict[@"biz_data"] = bizData;
-
-                      // 📡 إرسال إشعار للترمنال بنجاح الاختراق
-                      SendToRadar(@"GETCONFIG_HIJACKED", @"Tencent Orders Neutralized Successfully! 💀");
-                      NSLog(@"[MASOUD LAB] 🎯 GETCONFIG HIJACKED!");
-                      
-                      return [mDict copy];
                   }
+              } @catch (NSException *e) {
+                  // إذا حدث أي خطأ غير متوقع، لا نكرش اللعبة! نرجع الملف الأصلي
+                  NSLog(@"[MASOUD LAB] Hijack failed safely: %@", e.reason);
               }
+              
               return result;
           }
 
           // ==========================================
-          // 🚀 التشغيل
+          // 🚀 التشغيل الآمن (التأخير التكتيكي)
           // ==========================================
           __attribute__((constructor))
           static void start_json_hijacker() {
-              // الحقن السلس بدون أي Fishhook
-              Method m = class_getClassMethod([NSJSONSerialization class], @selector(JSONObjectWithData:options:error:));
-              orig_JSONObjectWithData = (id (*)(Class, SEL, NSData *, NSJSONReadingOptions, NSError **))method_getImplementation(m);
-              method_setImplementation(m, (IMP)hk_JSONObjectWithData);
-              
-              // 📡 إرسال إشارة الحياة للترمنال
-              SendToRadar(@"SYSTEM_INIT", @"JSON Hijacker + Radar is ACTIVE 🦅");
-              NSLog(@"[MASOUD LAB] 🦅 CONFIG HIJACKER ACTIVE!");
+              // تأخير 3 ثواني لتفادي التداخل مع عمليات الإقلاع وتسجيل الدخول الأولية
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                  
+                  Method m = class_getClassMethod([NSJSONSerialization class], @selector(JSONObjectWithData:options:error:));
+                  orig_JSONObjectWithData = (id (*)(Class, SEL, NSData *, NSJSONReadingOptions, NSError **))method_getImplementation(m);
+                  method_setImplementation(m, (IMP)hk_JSONObjectWithData);
+                  
+                  SendToRadar(@"SYSTEM_INIT", @"Bulletproof Hijacker & Radar ACTIVE 🦅");
+                  NSLog(@"[MASOUD LAB] 🦅 CONFIG HIJACKER ACTIVE!");
+                  
+              });
           }
           EOF
 
