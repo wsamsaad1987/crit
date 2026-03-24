@@ -1,4 +1,4 @@
-name: Imperial V-MAX - Ultimate Firewall & Offset Sniper
+name: Imperial V-MAX - Multi-Module Sniper (Shadow + Anogs)
 
 on:
   push:
@@ -6,83 +6,68 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_ultimate_combo:
-    name: Compile Ultimate Hybrid Dylib
+  build_hybrid_sniper:
+    name: Compile Multi-Module Sniper Dylib
     runs-on: macos-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Download Fishhook
+      - name: Generate C++ Payload (Main.mm)
         run: |
           mkdir -p jni
-          curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.c -o jni/fishhook.c
-          curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.h -o jni/fishhook.h
-
-      - name: Generate Hybrid Payload (Main.mm)
-        run: |
           cat <<'EOF' > jni/main.mm
           #import <Foundation/Foundation.h>
-          #import <mach/mach.h>
           #import <mach-o/dyld.h>
-          #import <dlfcn.h>
-          #import <netdb.h>
-          #include "fishhook.h"
+          #import <mach/mach.h>
+          #import <sys/mman.h>
+          #import <libkern/OSCacheControl.h>
+          #import <signal.h>
 
           /**
            * ========================================================
-           * 🛡️ MASOUD HYBRID ENGINE (OFFSET SNIPER + NETWORK FIREWALL)
-           * 🎯 TARGET: OFFSET 0x459C (CPU HWBP)
-           * 🚫 FIREWALL: Block Spy Domains from getconfig
+           * 🛡️ MASOUD MULTI-MODULE SNIPER (V-MAX)
+           * 🎯 TARGET 1: anogs.dylib (Offset 0x459C) via HWBP
+           * 🎯 TARGET 2: ShadowTrackerExtra (6 Offsets) via Runtime Patch
            * ========================================================
            */
 
-          static uintptr_t g_anogs_base = 0;
-          static uintptr_t g_target_addr = 0;
+          static uintptr_t g_anogs_target = 0;
+          uint8_t op_mov_x0_0[] = {0x00, 0x00, 0x80, 0xD2}; // MOV X0, #0
 
           // ==========================================
-          // 🛡️ 1. الجدار الناري (Network Firewall)
+          // 🛠️ محرك تعديل الذاكرة (لأوفستات الشادو)
           // ==========================================
-          static int (*orig_getaddrinfo)(const char *node, const char *service, const struct addrinfo *hints, struct addrinfo **res);
-
-          int hk_getaddrinfo(const char *node, const char *service, const struct addrinfo *hints, struct addrinfo **res) {
-              if (node) {
-                  NSString *domain = [NSString stringWithUTF8String:node];
-                  // الروابط اللي إنت صدتها بملف الـ JSON
-                  NSArray *blacklist = @[
-                      @"tdatamaster.qq.com", 
-                      @"crashsight.qq.com", 
-                      @"cloudctrl.qq.com", 
-                      @"anogs.qq.com",
-                      @"telemetry.pubgm.com"
-                  ];
-                  
-                  for (NSString *blocked in blacklist) {
-                      if ([domain containsString:blocked]) {
-                          NSLog(@"[MASOUD FIREWALL] 🚫 Blocked Snitch Connection to: %@", domain);
-                          return EAI_NONAME; // "Server not found" - خداع الجاسوس
-                      }
-                  }
-              }
-              return orig_getaddrinfo(node, service, hints, res);
+          void PatchMem(uintptr_t addr) {
+              if (addr == 0) return;
+              uintptr_t page_start = addr & ~(PAGE_SIZE - 1);
+              mprotect((void*)page_start, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC);
+              memcpy((void*)addr, op_mov_x0_0, 4);
+              sys_icache_invalidate((void*)addr, 4);
+              mprotect((void*)page_start, PAGE_SIZE, PROT_READ | PROT_EXEC);
           }
 
           // ==========================================
-          // ⚡ 2. قناص المعالج (CPU HWBP Sniper)
+          // 🧠 مصيدة المعالج (للأوفست الذهبي 0x459C)
           // ==========================================
-          void HWBP_Trap_Handler(int signum, siginfo_t *info, void *context) {
+          void hw_trap_handler(int signum, siginfo_t *info, void *context) {
               ucontext_t *uc = (ucontext_t *)context;
-              _STRUCT_ARM_THREAD_STATE64 *state = &uc->uc_mcontext->__ss;
+              _STRUCT_ARM_THREAD_STATE64 *ss = &uc->uc_mcontext->__ss;
 
-              if (state->__pc == g_target_addr) {
-                  state->__x[0] = 0; // تنفيذ تعديل مسعود (MOV X0, #0)
-                  state->__pc += 4;  // القفز للسطر التالي
-                  NSLog(@"[MASOUD SNIPER] 🎯 Headshot at 0x%lx! Scanner blinded.", state->__pc);
+              if (ss->__pc == g_anogs_target) {
+                  ss->__x[0] = 0; // تصفير النتيجة
+                  ss->__pc += 4;  // تخطي التعليمة
               }
           }
 
-          void PlantHWBP() {
+          void ApplyHWBP(uintptr_t target) {
+              struct sigaction sa;
+              sa.sa_sigaction = hw_trap_handler;
+              sa.sa_flags = SA_SIGINFO;
+              sigemptyset(&sa.sa_mask);
+              sigaction(SIGTRAP, &sa, NULL);
+
               thread_act_array_t threads;
               mach_msg_type_number_t count;
               if (task_threads(mach_task_self(), &threads, &count) != KERN_SUCCESS) return;
@@ -91,60 +76,73 @@ jobs:
                   arm_debug_state64_t dbg;
                   mach_msg_type_number_t dbg_count = ARM_DEBUG_STATE64_COUNT;
                   if (thread_get_state(threads[i], ARM_DEBUG_STATE64, (thread_state_t)&dbg, &dbg_count) == KERN_SUCCESS) {
-                      dbg.__bvr[0] = g_target_addr;
-                      dbg.__bcr[0] = 0x1E5; // Enable HWBP Exec
+                      dbg.__bvr[0] = target;
+                      dbg.__bcr[0] = 0x1E5; 
                       thread_set_state(threads[i], ARM_DEBUG_STATE64, (thread_state_t)&dbg, ARM_DEBUG_STATE64_COUNT);
                   }
               }
           }
 
           // ==========================================
-          // 🚀 تشغيل المحرك الهجين
+          // 🚀 المحرك المركزي (مراقبة التحميل)
           // ==========================================
-          __attribute__((constructor))
-          static void start_masoud_hybrid() {
-              NSLog(@"[MASOUD LAB] 🦅 Hybrid Engine Initializing...");
-
-              // تفعيل الجدار الناري فوراً
-              struct rebinding hooks[] = {
-                  {"getaddrinfo", (void *)hk_getaddrinfo, (void **)&orig_getaddrinfo}
-              };
-              rebind_symbols(hooks, 1);
-
-              // إعداد قناص المعالج
-              struct sigaction sa;
-              memset(&sa, 0, sizeof(sa));
-              sa.sa_sigaction = HWBP_Trap_Handler;
-              sa.sa_flags = SA_SIGINFO;
-              sigaction(SIGTRAP, &sa, NULL);
-
+          void StartSniper() {
               dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
-                  while (g_target_addr == 0) {
+                  bool anogs_done = false;
+                  bool shadow_done = false;
+
+                  while (!anogs_done || !shadow_done) {
                       for (uint32_t i = 0; i < _dyld_image_count(); i++) {
-                          if (strstr(_dyld_get_image_name(i), "anogs")) {
-                              g_anogs_base = (uintptr_t)_dyld_get_image_header(i);
-                              g_target_addr = g_anogs_base + 0x459C; // أوفست مسعود الذهبي
-                              break;
+                          const char* name = _dyld_get_image_name(i);
+                          uintptr_t base = (uintptr_t)_dyld_get_image_header(i);
+
+                          // 1. معالجة ملف الحماية (anogs) بالسجلات
+                          if (!anogs_done && strstr(name, "anogs")) {
+                              g_anogs_target = base + 0x459C;
+                              sleep(1);
+                              ApplyHWBP(g_anogs_target);
+                              anogs_done = true;
+                              NSLog(@"[MASOUD] 🎯 ANOGS SNIPER ACTIVE AT 0x459C");
+                          }
+
+                          // 2. معالجة ملف اللعبة (Shadow) بالباتش المباشر
+                          if (!shadow_done && strstr(name, "ShadowTrackerExtra")) {
+                              sleep(2); // انتظار اكتمال فك تشفير اللعبة
+                              
+                              // حقن الأوفستات الـ 6 اللي عطيتني إياها يا ذيب
+                              PatchMem(base + 0x382AA78);
+                              PatchMem(base + 0x38B655C);
+                              PatchMem(base + 0x3D87E24);
+                              PatchMem(base + 0x384C5CC);
+                              PatchMem(base + 0x4B460FC);
+                              PatchMem(base + 0x381C640);
+
+                              shadow_done = true;
+                              NSLog(@"[MASOUD] 🛡️ SHADOW 6-POINT ARMOR DEPLOYED!");
                           }
                       }
                       sleep(1);
                   }
-                  PlantHWBP();
-                  NSLog(@"[MASOUD LAB] ✅ Hybrid Engine is ACTIVE. Sniper on 0x459C + Firewall on!");
               });
+          }
+
+          __attribute__((constructor))
+          static void init() {
+              NSLog(@"[MASOUD LAB] 🦅 HYBRID SNIPER INITIALIZED!");
+              StartSniper();
           }
           EOF
 
-      - name: Compile Hybrid Dylib
+      - name: Compile Sniper
         run: |
           clang++ -dynamiclib -std=c++11 -arch arm64 \
-          -isysroot $(xcroot --sdk iphoneos --show-sdk-path) \
-          jni/main.mm jni/fishhook.c -o Masoud-Hybrid-Combo.dylib \
+          -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
+          jni/main.mm -o Masoud-Hybrid-Sniper.dylib \
           -framework Foundation
-          strip -x Masoud-Hybrid-Combo.dylib
+          strip -x Masoud-Hybrid-Sniper.dylib
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Masoud-Hybrid-Combo
-          path: Masoud-Hybrid-Combo.dylib
+          name: Masoud-Hybrid-Sniper
+          path: Masoud-Hybrid-Sniper.dylib
