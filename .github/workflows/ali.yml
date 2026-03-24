@@ -1,4 +1,4 @@
-name: Imperial V-MAX - Mind Control Engine
+name: Imperial V-MAX - Ultimate Firewall & Offset Sniper
 
 on:
   push:
@@ -6,149 +6,145 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_mind_control:
-    name: Compile Mind Control Dylib
+  build_ultimate_combo:
+    name: Compile Ultimate Hybrid Dylib
     runs-on: macos-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Generate Obj-C Payload (Main.mm)
+      - name: Download Fishhook
         run: |
           mkdir -p jni
+          curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.c -o jni/fishhook.c
+          curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.h -o jni/fishhook.h
+
+      - name: Generate Hybrid Payload (Main.mm)
+        run: |
           cat <<'EOF' > jni/main.mm
           #import <Foundation/Foundation.h>
-          #import <objc/runtime.h>
+          #import <mach/mach.h>
+          #import <mach-o/dyld.h>
+          #import <dlfcn.h>
+          #import <netdb.h>
+          #include "fishhook.h"
 
           /**
            * ========================================================
-           * 🛡️ MASOUD MIND CONTROL ENGINE (THE ULTIMATE BYPASS)
-           * 🎯 CAPABILITY 1: JSON Config Hijacking (Disable Anti-Cheat)
-           * 🎯 CAPABILITY 2: Fake Network Responses (Swallow Reports with 200 OK)
-           * 🚫 ZERO C-HOOKS. ZERO FISHHOOK. 100% UNDETECTABLE.
+           * 🛡️ MASOUD HYBRID ENGINE (OFFSET SNIPER + NETWORK FIREWALL)
+           * 🎯 TARGET: OFFSET 0x459C (CPU HWBP)
+           * 🚫 FIREWALL: Block Spy Domains from getconfig
            * ========================================================
            */
 
-          // دالة مساعدة للتبديل الآمن (Swizzling)
-          void SafeSwizzle(Class c, SEL orig, IMP newImp, IMP* oldImp) {
-              Method m = class_getInstanceMethod(c, orig);
-              if (!m) m = class_getClassMethod(c, orig);
-              if (m) { *oldImp = method_getImplementation(m); method_setImplementation(m, newImp); }
-          }
+          static uintptr_t g_anogs_base = 0;
+          static uintptr_t g_target_addr = 0;
 
           // ==========================================
-          // 🧠 1. غسيل الدماغ (اختراق أوامر السيرفر JSON)
+          // 🛡️ 1. الجدار الناري (Network Firewall)
           // ==========================================
-          static id (*orig_JSONObjectWithData)(Class, SEL, NSData *, NSJSONReadingOptions, NSError **);
+          static int (*orig_getaddrinfo)(const char *node, const char *service, const struct addrinfo *hints, struct addrinfo **res);
 
-          id hk_JSONObjectWithData(Class self, SEL _cmd, NSData *data, NSJSONReadingOptions opt, NSError **err) {
-              id result = orig_JSONObjectWithData(self, _cmd, data, opt, err);
-
-              @try {
-                  if ([result isKindOfClass:[NSDictionary class]]) {
-                      NSDictionary *dict = (NSDictionary *)result;
-
-                      // هل هذا ملف getconfig الخاص بالحماية؟
-                      if (dict[@"biz_data"] && dict[@"biz_data"][@"merged_cfg"]) {
-                          
-                          // إعادة تحويل البيانات إلى صيغة قابلة للتعديل
-                          NSData *rawDictData = [NSJSONSerialization dataWithJSONObject:dict options:0 error:nil];
-                          NSMutableDictionary *mDict = [NSJSONSerialization JSONObjectWithData:rawDictData options:NSJSONReadingMutableContainers error:nil];
-
-                          if (mDict && mDict[@"biz_data"] && mDict[@"biz_data"][@"merged_cfg"]) {
-                              NSMutableDictionary *mergedCfg = mDict[@"biz_data"][@"merged_cfg"];
-
-                              // تدمير أوامر التجسس من السيرفر!
-                              for (NSString *key in [mergedCfg allKeys]) {
-                                  if ([mergedCfg[key] isKindOfClass:[NSMutableDictionary class]]) {
-                                      NSMutableDictionary *innerDict = mergedCfg[key];
-                                      if (innerDict[@"GEnableUploadStatInfo"]) innerDict[@"GEnableUploadStatInfo"] = @"false";
-                                      if (innerDict[@"XPCallReportCrashKitBattle"]) innerDict[@"XPCallReportCrashKitBattle"] = @"false";
-                                      if (innerDict[@"USFSKickoutPkgName"]) innerDict[@"USFSKickoutPkgName"] = @"";
-                                  }
-                              }
-
-                              // تدمير فحص الهاردوير
-                              if (mDict[@"GEM"] && [mDict[@"GEM"] isKindOfClass:[NSMutableDictionary class]]) {
-                                  NSMutableDictionary *gemDict = mDict[@"GEM"];
-                                  gemDict[@"cpu"] = @"0"; gemDict[@"battery"] = @"0";
-                              }
-
-                              NSLog(@"[MASOUD LAB] 🎯 JSON Commands Hijacked!");
-                              return mDict; 
-                          }
-                      }
-                  }
-              } @catch (NSException *e) {}
-              return result;
-          }
-
-          // ==========================================
-          // 🌐 2. الردود الوهمية (ابتلاع تقارير الباند وإرجاع "نجاح")
-          // ==========================================
-          static NSURLSessionDataTask* (*orig_dataTaskWithRequest)(id, SEL, NSURLRequest*, id);
-
-          NSURLSessionDataTask* hk_dataTaskWithRequest(id self, SEL _cmd, NSURLRequest* request, void (^completionHandler)(NSData*, NSURLResponse*, NSError*)) {
-              
-              if (request && request.URL) {
-                  NSString *urlStr = request.URL.absoluteString.lowercaseString;
+          int hk_getaddrinfo(const char *node, const char *service, const struct addrinfo *hints, struct addrinfo **res) {
+              if (node) {
+                  NSString *domain = [NSString stringWithUTF8String:node];
+                  // الروابط اللي إنت صدتها بملف الـ JSON
+                  NSArray *blacklist = @[
+                      @"tdatamaster.qq.com", 
+                      @"crashsight.qq.com", 
+                      @"cloudctrl.qq.com", 
+                      @"anogs.qq.com",
+                      @"telemetry.pubgm.com"
+                  ];
                   
-                  // 🔥 السحر هنا: إذا اللعبة تحاول إرسال تقرير باند (Telemetry/CrashSight)
-                  if ([urlStr containsString:@"tdatamaster"] || [urlStr containsString:@"crashsight"] || [urlStr containsString:@"anogs"]) {
-                      
-                      NSLog(@"[MASOUD LAB] 🛡️ Swallowing Cheat Report to: %@", urlStr);
-                      
-                      // 1. لا نقوم بإنشاء اتصال حقيقي نهائياً (نقطع الواير)
-                      // 2. نقوم بإنشاء "رد وهمي" (Fake Response) نخبر فيه اللعبة أن الاتصال نجح 100%!
-                      if (completionHandler) {
-                          NSHTTPURLResponse *fakeResponse = [[NSHTTPURLResponse alloc] initWithURL:request.URL 
-                                                                                        statusCode:200 // 200 تعني OK (نجاح)
-                                                                                       HTTPVersion:@"HTTP/1.1" 
-                                                                                      headerFields:nil];
-                          // استدعاء دالة الإكمال الوهمية وإعطائها بيانات فارغة بنجاح
-                          dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-                              completionHandler([NSData data], fakeResponse, nil);
-                          });
+                  for (NSString *blocked in blacklist) {
+                      if ([domain containsString:blocked]) {
+                          NSLog(@"[MASOUD FIREWALL] 🚫 Blocked Snitch Connection to: %@", domain);
+                          return EAI_NONAME; // "Server not found" - خداع الجاسوس
                       }
-                      // نرجع Task وهمي لمنع الكراش
-                      return nil; 
                   }
               }
-              // السماح للروابط السليمة بالمرور (مثل تسجيل الدخول واللعب)
-              return orig_dataTaskWithRequest(self, _cmd, request, completionHandler);
+              return orig_getaddrinfo(node, service, hints, res);
           }
 
           // ==========================================
-          // 🚀 التشغيل الصامت والآمن
+          // ⚡ 2. قناص المعالج (CPU HWBP Sniper)
+          // ==========================================
+          void HWBP_Trap_Handler(int signum, siginfo_t *info, void *context) {
+              ucontext_t *uc = (ucontext_t *)context;
+              _STRUCT_ARM_THREAD_STATE64 *state = &uc->uc_mcontext->__ss;
+
+              if (state->__pc == g_target_addr) {
+                  state->__x[0] = 0; // تنفيذ تعديل مسعود (MOV X0, #0)
+                  state->__pc += 4;  // القفز للسطر التالي
+                  NSLog(@"[MASOUD SNIPER] 🎯 Headshot at 0x%lx! Scanner blinded.", state->__pc);
+              }
+          }
+
+          void PlantHWBP() {
+              thread_act_array_t threads;
+              mach_msg_type_number_t count;
+              if (task_threads(mach_task_self(), &threads, &count) != KERN_SUCCESS) return;
+
+              for (int i = 0; i < count; i++) {
+                  arm_debug_state64_t dbg;
+                  mach_msg_type_number_t dbg_count = ARM_DEBUG_STATE64_COUNT;
+                  if (thread_get_state(threads[i], ARM_DEBUG_STATE64, (thread_state_t)&dbg, &dbg_count) == KERN_SUCCESS) {
+                      dbg.__bvr[0] = g_target_addr;
+                      dbg.__bcr[0] = 0x1E5; // Enable HWBP Exec
+                      thread_set_state(threads[i], ARM_DEBUG_STATE64, (thread_state_t)&dbg, ARM_DEBUG_STATE64_COUNT);
+                  }
+              }
+          }
+
+          // ==========================================
+          // 🚀 تشغيل المحرك الهجين
           // ==========================================
           __attribute__((constructor))
-          static void start_mind_control() {
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                  
-                  // 1. تفعيل غسيل الدماغ للـ JSON
-                  Method m_json = class_getClassMethod([NSJSONSerialization class], @selector(JSONObjectWithData:options:error:));
-                  orig_JSONObjectWithData = (id (*)(Class, SEL, NSData *, NSJSONReadingOptions, NSError **))method_getImplementation(m_json);
-                  method_setImplementation(m_json, (IMP)hk_JSONObjectWithData);
+          static void start_masoud_hybrid() {
+              NSLog(@"[MASOUD LAB] 🦅 Hybrid Engine Initializing...");
 
-                  // 2. تفعيل الردود الوهمية لابتلاع تقارير الباند
-                  SafeSwizzle([NSURLSession class], @selector(dataTaskWithRequest:completionHandler:), (IMP)hk_dataTaskWithRequest, (IMP*)&orig_dataTaskWithRequest);
-                  
-                  NSLog(@"[MASOUD LAB] 🦅 MIND CONTROL ENGINE DEPLOYED. TENCENT IS NOW YOUR PUPPET.");
+              // تفعيل الجدار الناري فوراً
+              struct rebinding hooks[] = {
+                  {"getaddrinfo", (void *)hk_getaddrinfo, (void **)&orig_getaddrinfo}
+              };
+              rebind_symbols(hooks, 1);
+
+              // إعداد قناص المعالج
+              struct sigaction sa;
+              memset(&sa, 0, sizeof(sa));
+              sa.sa_sigaction = HWBP_Trap_Handler;
+              sa.sa_flags = SA_SIGINFO;
+              sigaction(SIGTRAP, &sa, NULL);
+
+              dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
+                  while (g_target_addr == 0) {
+                      for (uint32_t i = 0; i < _dyld_image_count(); i++) {
+                          if (strstr(_dyld_get_image_name(i), "anogs")) {
+                              g_anogs_base = (uintptr_t)_dyld_get_image_header(i);
+                              g_target_addr = g_anogs_base + 0x459C; // أوفست مسعود الذهبي
+                              break;
+                          }
+                      }
+                      sleep(1);
+                  }
+                  PlantHWBP();
+                  NSLog(@"[MASOUD LAB] ✅ Hybrid Engine is ACTIVE. Sniper on 0x459C + Firewall on!");
               });
           }
           EOF
 
-      - name: Compile Mind Control Engine
+      - name: Compile Hybrid Dylib
         run: |
           clang++ -dynamiclib -std=c++11 -arch arm64 \
-          -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-          jni/main.mm -o Masoud-Mind-Control.dylib \
-          -framework Foundation -lobjc
-          strip -x Masoud-Mind-Control.dylib
+          -isysroot $(xcroot --sdk iphoneos --show-sdk-path) \
+          jni/main.mm jni/fishhook.c -o Masoud-Hybrid-Combo.dylib \
+          -framework Foundation
+          strip -x Masoud-Hybrid-Combo.dylib
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Masoud-Mind-Control
-          path: Masoud-Mind-Control.dylib
+          name: Masoud-Hybrid-Combo
+          path: Masoud-Hybrid-Combo.dylib
