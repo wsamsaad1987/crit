@@ -1,4 +1,4 @@
-name: Imperial V-MAX - anogs Offset Extractor
+name: Imperial V-MAX - anogs Live Offset Tracker
 
 on:
   push:
@@ -26,142 +26,113 @@ jobs:
           #import <Foundation/Foundation.h>
           #import <unistd.h>
           #import <sys/stat.h>
-          #import <fcntl.h>
-          #import <sys/sysctl.h>
+          #import <sys/socket.h>
+          #import <arpa/inet.h>
           #import <dlfcn.h>
           #include "fishhook.h"
 
-          // ⚠️ رابط سيرفر مسعود
-          #define RADAR_SERVER_URL @"http://34.204.178.160:8080"
+          // ⚠️ آيبي سيرفر مسعود (RDP) والبورت
+          #define SERVER_IP "34.204.178.160"
+          #define SERVER_PORT 8080
 
           /**
-           * 🛡️ PROJECT: ANOGS OFFSET EXTRACTOR (Live RE)
+           * 🛡️ PROJECT: ANOGS OFFSET EXTRACTOR (Raw TCP Edition)
            * 👨‍💻 RESEARCHER: MASOUD (NASIRIYAH)
            */
 
-          // حفظ الدوال الأصلية
           static int (*orig_access)(const char *path, int amode);
           static int (*orig_stat)(const char *path, struct stat *buf);
-          static int (*orig_open)(const char *path, int oflag, ...);
-          static int (*orig_sysctlbyname)(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen);
           static void* (*orig_dlsym)(void* handle, const char* symbol);
 
-          // 📡 دالة الإرسال للسيرفر (إرسال الأوفست والهدف)
-          void SendAnogsTelemetry(NSString *funcName, uintptr_t offset, NSString *targetPath) {
+          // 📡 دالة الإرسال عبر مآخذ الشبكة الخام (تتخطى حماية آبل ATS)
+          void SendRawTelemetry(NSDictionary *dataDict) {
               dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
-                  NSString *offsetHex = [NSString stringWithFormat:@"0x%lx", offset];
-                  NSDictionary *payload = @{
-                      @"func": funcName,
-                      @"offset": offsetHex,
-                      @"target": targetPath ?: @"N/A"
-                  };
-                  NSData *jsonData = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];
-                  if (jsonData) {
-                      NSURL *url = [NSURL URLWithString:RADAR_SERVER_URL];
-                      NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
-                      [req setHTTPMethod:@"POST"];
-                      [req setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
-                      [req setHTTPBody:jsonData];
-                      [[[NSURLSession sharedSession] dataTaskWithRequest:req] resume];
+                  NSData *jsonData = [NSJSONSerialization dataWithJSONObject:dataDict options:0 error:nil];
+                  if (!jsonData) return;
+
+                  int sock = socket(AF_INET, SOCK_STREAM, 0);
+                  if (sock < 0) return;
+
+                  struct sockaddr_in serv_addr;
+                  serv_addr.sin_family = AF_INET;
+                  serv_addr.sin_port = htons(SERVER_PORT);
+                  
+                  if (inet_pton(AF_INET, SERVER_IP, &serv_addr.sin_addr) <= 0) {
+                      close(sock); return;
                   }
+
+                  // ضبط وقت انتظار الاتصال (Timeout) حتى لا تكرش اللعبة
+                  struct timeval timeout;
+                  timeout.tv_sec = 2; timeout.tv_usec = 0;
+                  setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout));
+
+                  if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == 0) {
+                      send(sock, [jsonData bytes], [jsonData length], 0);
+                  }
+                  close(sock);
               });
           }
 
-          // 🔍 المحرك الأساسي لاكتشاف anogs وحساب الأوفست
-          void CheckIfAnogsAndReport(const char* func_name, const char* target) {
+          // 🔍 المحرك الذكي لاكتشاف الجاسوس وحساب الأوفست
+          void CheckAndReport(const char* func_name, const char* target) {
+              void* ret_addr = __builtin_return_address(0);
               Dl_info info;
-              void* ret_addr = __builtin_return_address(0); // الحصول على عنوان من قام بالاستدعاء
               
               if (dladdr(ret_addr, &info) && info.dli_fname) {
-                  NSString *caller = [NSString stringWithUTF8String:info.dli_fname];
+                  NSString *callerPath = [NSString stringWithUTF8String:info.dli_fname];
+                  NSString *callerName = [callerPath lastPathComponent].lowercaseString;
                   
-                  // 🔥 الفلتر: هل المتصل هو anogs؟
-                  if ([caller containsString:@"anogs"]) {
-                      // حساب الأوفست الحقيقي: (عنوان التنفيذ - عنوان بداية مكتبة anogs بالذاكرة)
-                      uintptr_t offset = (uintptr_t)ret_addr - (uintptr_t)info.dli_fbase;
-                      NSString *targetStr = target ? [NSString stringWithUTF8String:target] : @"Unknown";
+                  // 🔥 فلتر ذكي: نصيد anogs أو أي شي يخص الحماية
+                  if ([callerName containsString:@"anogs"] || 
+                      [callerName containsString:@"ace"] || 
+                      [callerName containsString:@"tdm"]) {
                       
-                      SendAnogsTelemetry([NSString stringWithUTF8String:func_name], offset, targetStr);
+                      uintptr_t offset = (uintptr_t)ret_addr - (uintptr_t)info.dli_fbase;
+                      
+                      SendRawTelemetry(@{
+                          @"func": [NSString stringWithUTF8String:func_name],
+                          @"offset": [NSString stringWithFormat:@"0x%lx", offset],
+                          @"target": target ? [NSString stringWithUTF8String:target] : @"N/A"
+                      });
                   }
               }
           }
 
-          // ==========================================
           // ⚔️ خطافات الصيد (Hooks)
-          // ==========================================
-          
           int hk_access(const char *path, int amode) {
-              static __thread bool is_logging = false;
-              if (!is_logging && path) {
-                  is_logging = true;
-                  CheckIfAnogsAndReport("access", path);
-                  is_logging = false;
-              }
+              CheckAndReport("access", path);
               return orig_access(path, amode);
           }
 
           int hk_stat(const char *path, struct stat *buf) {
-              static __thread bool is_logging = false;
-              if (!is_logging && path) {
-                  is_logging = true;
-                  CheckIfAnogsAndReport("stat", path);
-                  is_logging = false;
-              }
+              CheckAndReport("stat", path);
               return orig_stat(path, buf);
           }
 
-          int hk_open(const char *path, int oflag, ...) {
-              static __thread bool is_logging = false;
-              if (!is_logging && path) {
-                  is_logging = true;
-                  CheckIfAnogsAndReport("open", path);
-                  is_logging = false;
-              }
-              va_list args;
-              va_start(args, oflag);
-              int mode = va_arg(args, int);
-              va_end(args);
-              return orig_open(path, oflag, mode);
-          }
-
-          int hk_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-              static __thread bool is_logging = false;
-              if (!is_logging && name) {
-                  is_logging = true;
-                  CheckIfAnogsAndReport("sysctlbyname", name); // خطير جداً يستخدم لفحص الجلبريك
-                  is_logging = false;
-              }
-              return orig_sysctlbyname(name, oldp, oldlenp, newp, newlen);
-          }
-
           void* hk_dlsym(void* handle, const char* symbol) {
-              static __thread bool is_logging = false;
-              if (!is_logging && symbol) {
-                  is_logging = true;
-                  CheckIfAnogsAndReport("dlsym", symbol); // يستخدمه للبحث عن دوال الغش
-                  is_logging = false;
-              }
+              CheckAndReport("dlsym", symbol);
               return orig_dlsym(handle, symbol);
           }
 
-          // 🚀 التفعيل
+          // 🚀 التفعيل المركزي
           __attribute__((constructor))
-          static void start_anogs_tracker() {
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+          static void start_masoud_radar() {
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                  
+                  // إرسال إشارة الربط أولاً للتأكد من الاتصال
+                  SendRawTelemetry(@{@"func": @"RADAR_INIT", @"offset": @"0x0", @"target": @"اتصال ناجح مع سيرفر مسعود"});
+
                   struct rebinding rebinds[] = {
                       {"access", (void *)hk_access, (void **)&orig_access},
                       {"stat", (void *)hk_stat, (void **)&orig_stat},
-                      {"open", (void *)hk_open, (void **)&orig_open},
-                      {"sysctlbyname", (void *)hk_sysctlbyname, (void **)&orig_sysctlbyname},
                       {"dlsym", (void *)hk_dlsym, (void **)&orig_dlsym}
                   };
-                  rebind_symbols(rebinds, 5);
-                  NSLog(@"[ANOGS EXTRACTOR] 👁️‍🗨️ Tracker Active. Hunting offsets...");
+                  rebind_symbols(rebinds, 3);
               });
           }
           EOF
 
-      - name: 🚀 تجميع دايلب الرادار
+      - name: 🚀 تجميع دايلب الرادار النهائي
         run: |
           clang++ -dynamiclib -std=c++11 -arch arm64 \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
