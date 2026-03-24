@@ -1,4 +1,4 @@
-name: Imperial V-MAX - Ghost Engine (Lag-Free Radar + Patcher)
+name: Imperial V-MAX - Non-JB Radar & Spoofer
 
 on:
   push:
@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_ghost_mode:
-    name: Compile Ghost Engine Dylib
+  build_non_jb_radar:
+    name: Compile Safe Radar (No Jailbreak)
     runs-on: macos-latest
 
     steps:
@@ -24,34 +24,26 @@ jobs:
         run: |
           cat <<'EOF' > jni/main.mm
           #import <Foundation/Foundation.h>
-          #import <mach-o/dyld.h>
-          #import <sys/mman.h>
+          #import <dlfcn.h>
           #import <sys/socket.h>
           #import <arpa/inet.h>
-          #import <dlfcn.h>
           #import <sys/sysctl.h>
-          #import <libkern/OSCacheControl.h>
-          #import <unistd.h>
           #include "fishhook.h"
 
-          // ⚠️ C2 Server Configuration (Masoud RDP)
+          // ⚠️ C2 Server (Masoud RDP)
           #define C2_IP "44.192.33.117"
           #define C2_PORT 8080
 
           // ==========================================
-          // 🛡️ MASOUD GHOST ENGINE - SHARED STATE
+          // 🛡️ MASOUD RADAR (NON-JAILBREAK SAFE MODE)
           // ==========================================
-          static uintptr_t g_anogs_base = 0;
-          static uintptr_t g_anogs_slide = 0;
-          static uintptr_t g_anogs_end = 0;
-          static bool g_anogs_found = false;
-          static NSMutableSet* g_reported_offsets = nil; // لمنع التكرار والكراش
+          static NSMutableSet* g_reported_offsets = nil; 
 
           static int (*orig_sysctlbyname)(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen);
           static void* (*orig_dlsym)(void* handle, const char* symbol);
           static FILE* (*orig_fopen)(const char *filename, const char *mode);
 
-          // إرسال البيانات (بشكل غير متزامن وآمن)
+          // إرسال البيانات للسيرفر
           void SendToRadar(NSDictionary *data) {
               dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
                   NSData *json = [NSJSONSerialization dataWithJSONObject:data options:0 error:nil];
@@ -67,119 +59,94 @@ jobs:
               });
           }
 
-          // فحص سريع جداً (O(1)) لمنع تعليق اللعبة
-          void AnalyzeAndReport(const char* func_name, const char* target) {
-              if (!g_anogs_found) return; // إذا الجاسوس بعده ما شغال، اخرج فوراً
-
-              uintptr_t ret_addr = (uintptr_t)__builtin_return_address(0);
+          // فحص الهوية والتبليغ (آمن جداً)
+          void AnalyzeAndSpoof(const char* func_name, const char* target) {
+              void* ret_addr = __builtin_return_address(0);
+              Dl_info info;
               
-              // فحص رياضي سريع جداً بدل البحث في النصوص (يمنع اللاك والكراش)
-              if (ret_addr >= g_anogs_base && ret_addr < g_anogs_end) {
-                  uintptr_t real_offset = ret_addr - g_anogs_slide;
-                  NSString* offsetStr = [NSString stringWithFormat:@"0x%lx", real_offset];
+              if (dladdr(ret_addr, &info) && info.dli_fname) {
+                  NSString *caller = [[NSString stringWithUTF8String:info.dli_fname] lowercaseString];
                   
-                  // 🔥 نظام مكافحة التكرار: نرسل كل أوفست مرة واحدة فقط!
-                  @synchronized(g_reported_offsets) {
-                      if ([g_reported_offsets containsObject:offsetStr]) return;
-                      [g_reported_offsets addObject:offsetStr];
+                  if ([caller containsString:@"anogs"]) {
+                      uintptr_t ida_offset = (uintptr_t)ret_addr - (uintptr_t)info.dli_fbase;
+                      NSString* offsetStr = [NSString stringWithFormat:@"0x%lx", ida_offset];
+                      
+                      @synchronized(g_reported_offsets) {
+                          if ([g_reported_offsets containsObject:offsetStr]) return;
+                          [g_reported_offsets addObject:offsetStr];
+                      }
+                      
+                      SendToRadar(@{
+                          @"func": [NSString stringWithUTF8String:func_name],
+                          @"offset": offsetStr,
+                          @"target": target ? [NSString stringWithUTF8String:target] : @"NULL",
+                          @"caller": @"anogs"
+                      });
                   }
-                  
-                  SendToRadar(@{
-                      @"func": [NSString stringWithUTF8String:func_name],
-                      @"offset": offsetStr,
-                      @"target": target ? [NSString stringWithUTF8String:target] : @"NULL",
-                      @"caller": @"anogs"
-                  });
               }
           }
 
           // ==========================================
-          // ⚔️ خطافات الصيد السريعة
+          // ⚔️ التضليل الآمن (Spoofing) لنسخ الـ Sideload
           // ==========================================
+          
           int hk_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-              AnalyzeAndReport("sysctlbyname", name);
+              AnalyzeAndSpoof("sysctlbyname", name);
+              
+              // خداع الحماية إذا بحثت عن أدوات جلبريك
+              if (name && (strstr(name, "hw.machine") || strstr(name, "kern.osversion"))) {
+                  // نمررها بأمان
+              }
               return orig_sysctlbyname(name, oldp, oldlenp, newp, newlen);
           }
 
           void* hk_dlsym(void* handle, const char* symbol) {
-              AnalyzeAndReport("dlsym", symbol);
+              AnalyzeAndSpoof("dlsym", symbol);
+              
+              // تعمية dlsym بدون تعديل الذاكرة
+              if (symbol && (strstr(symbol, "ptrace") || strstr(symbol, "MSHook") || strstr(symbol, "Substrate"))) {
+                  return NULL; // نرجّع صفر، نعلمه إن الدالة ما موجودة!
+              }
               return orig_dlsym(handle, symbol);
           }
 
           FILE* hk_fopen(const char *filename, const char *mode) {
-              AnalyzeAndReport("fopen", filename);
+              AnalyzeAndSpoof("fopen", filename);
+              
+              // حظر قراءة ملفات مشبوهة
+              if (filename && (strstr(filename, "Cydia") || strstr(filename, "TDM_KV.log"))) {
+                  return NULL; // نكوله الملف ممسوح!
+              }
               return orig_fopen(filename, mode);
           }
 
-          // ==========================================
-          // 💣 المترصد الحي (Live Memory Patcher)
-          // ==========================================
-          void ApplyMasoudPatch(uintptr_t base_addr) {
-              uintptr_t target_offset = 0x459C; // أوفست الجاسوس
-              uintptr_t effective_addr = base_addr + target_offset;
-              
-              uint8_t safe_patch_bytes[] = {0x00, 0x00, 0x80, 0xD2}; // MOV X0, #0
-              
-              size_t page_size = getpagesize();
-              uintptr_t page_start = effective_addr & ~(page_size - 1);
-              mprotect((void*)page_start, page_size, PROT_READ | PROT_WRITE | PROT_EXEC);
-              memcpy((void*)effective_addr, safe_patch_bytes, sizeof(safe_patch_bytes));
-              sys_icache_invalidate((void*)effective_addr, sizeof(safe_patch_bytes));
-              mprotect((void*)page_start, page_size, PROT_READ | PROT_EXEC);
-              
-              SendToRadar(@{@"func": @"BOOM! PATCHED", @"offset": @"0x459C", @"target": @"MOV X0, #0", @"caller": @"Masoud_Ghost"});
-          }
-
-          // بحث لمرة واحدة فقط بالخلفية لعدم إرهاق المعالج
-          void InitializeGhostEngine() {
-              dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
-                  while (!g_anogs_found) {
-                      for (uint32_t i = 0; i < _dyld_image_count(); i++) {
-                          const char* image_name = _dyld_get_image_name(i);
-                          if (strstr(image_name, "anogs")) {
-                              g_anogs_slide = _dyld_get_image_vmaddr_slide(i);
-                              g_anogs_base = (uintptr_t)_dyld_get_image_header(i);
-                              g_anogs_end = g_anogs_base + 0x8000000; // تغطية مساحة الملف بالذاكرة
-                              
-                              sleep(1); // استقرار
-                              ApplyMasoudPatch(g_anogs_base); // تدمير الفحص
-                              
-                              g_anogs_found = true;
-                              break;
-                          }
-                      }
-                      if (!g_anogs_found) sleep(1);
-                  }
-              });
-          }
-
           __attribute__((constructor))
-          static void start_masoud_engine() {
+          static void start_non_jb_radar() {
               g_reported_offsets = [[NSMutableSet alloc] init];
               
-              SendToRadar(@{@"func": @"RADAR_INIT", @"offset": @"0x0", @"target": @"Ghost Engine Active", @"caller": @"System"});
-              
-              struct rebinding hooks[] = {
-                  {"sysctlbyname", (void *)hk_sysctlbyname, (void **)&orig_sysctlbyname},
-                  {"dlsym", (void *)hk_dlsym, (void **)&orig_dlsym},
-                  {"fopen", (void *)hk_fopen, (void **)&orig_fopen}
-              };
-              rebind_symbols(hooks, 3);
-              
-              InitializeGhostEngine();
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                  SendToRadar(@{@"func": @"RADAR_INIT", @"offset": @"0x0", @"target": @"Non-JB Radar Active!", @"caller": @"System"});
+                  
+                  struct rebinding hooks[] = {
+                      {"sysctlbyname", (void *)hk_sysctlbyname, (void **)&orig_sysctlbyname},
+                      {"dlsym", (void *)hk_dlsym, (void **)&orig_dlsym},
+                      {"fopen", (void *)hk_fopen, (void **)&orig_fopen}
+                  };
+                  rebind_symbols(hooks, 3);
+              });
           }
           EOF
 
-      - name: Compile Ghost Engine
+      - name: Compile Dylib
         run: |
           clang++ -dynamiclib -std=c++11 -arch arm64 \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-          jni/main.mm jni/fishhook.cpp -o Masoud-Ghost-Engine.dylib \
+          jni/main.mm jni/fishhook.cpp -o Masoud-NonJB-Radar.dylib \
           -framework Foundation
-          strip -x Masoud-Ghost-Engine.dylib
+          strip -x Masoud-NonJB-Radar.dylib
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Masoud-Ghost-Engine
-          path: Masoud-Ghost-Engine.dylib
+          name: Masoud-NonJB-Radar
+          path: Masoud-NonJB-Radar.dylib
