@@ -1,55 +1,40 @@
-name: Imperial V-MAX - Professional Security Research Build
+name: Imperial V-MAX - Professional Security Research (No-JB PoC)
 
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch: # يسمح لك بتشغيل البناء يدوياً من واجهة غيت هاب
+  workflow_dispatch:
 
 jobs:
   build_masoud_fortress:
-    name: Build Elite Security Dylib (PoC)
+    name: Build Elite Security Dylib (Fishhook PoC)
     runs-on: macos-latest
 
     steps:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 🛠️ Install Dependencies (CMake)
-        run: brew install cmake
-
-      - name: 🛡️ Clone & Build Dobby Engine (Fixed Architecture)
+      - name: 🎣 Fetch Fishhook Engine (No-JB Safe Hooking)
         run: |
-          echo "Fetching Dobby Hooking Engine..."
-          git clone --depth 1 https://github.com/jmpews/Dobby.git
-          mkdir -p Dobby/build && cd Dobby/build
-          
-          # 🔥 إصلاح خطأ Processor not configured وإجبار المعمارية للآيفون
-          cmake .. \
-            -DCMAKE_SYSTEM_NAME=iOS \
-            -DCMAKE_OSX_ARCHITECTURES=arm64 \
-            -DCMAKE_OSX_SYSROOT=iphoneos \
-            -DCMAKE_SYSTEM_PROCESSOR=arm64 \
-            -DDOBBY_TARGET_ARCH=arm64 \
-            -DDOBBY_GENERATE_SHARED=OFF \
-            -DDOBBY_DEBUG=OFF
-            
-          make -j$(sysctl -n hw.ncpu)
-          cd ../.. && mkdir -p include && cp Dobby/include/dobby.h include/
+          mkdir -p jni
+          echo "Fetching Fishhook (Safe Symbol Rebinding)..."
+          # سحب ملفات Fishhook الرسمية لأنها الأداة الوحيدة الآمنة لدوال C بدون جلبريك
+          curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.c -o jni/fishhook.c
+          curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.h -o jni/fishhook.h
 
       - name: 🧪 Generate Poisoned Well Source (Main.mm)
         run: |
-          mkdir -p jni
           cat <<'EOF' > jni/main.mm
           #import <Foundation/Foundation.h>
           #import <dlfcn.h>
           #import <mach-o/dyld.h>
           #import <string.h>
-          #include "dobby.h"
+          #include "fishhook.h" // استخدام محرك الخطاف الآمن بدل Dobby
 
           /**
-           * 🛡️ PROJECT: THE POISONED WELL (V-MAX PoC)
+           * 🛡️ PROJECT: THE POISONED WELL (V-MAX PoC - NO JB)
            * 👨‍💻 RESEARCHER: MASOUD (NASIRIYAH)
-           * 🔍 TARGET: Manual Symbol Resolution Spoofing
+           * 🔍 TARGET: Safe Symbol Resolution Spoofing (Fishhook)
            */
 
           static void* (*orig_dlsym)(void* handle, const char* symbol);
@@ -58,57 +43,55 @@ jobs:
           // دالة التزييف - تخفي الدايلب وتعيد اسم مكتبة نظام رسمية
           const char* hk_dyld_get_image_name(uint32_t image_index) {
               const char* real_name = orig_dyld_get_image_name(image_index);
-              // إذا اللعبة حاولت تصيد اسم الدايلب مالتنا "Masoud" أو "VMAX"
               if (real_name && (strstr(real_name, "Masoud") || strstr(real_name, "VMAX"))) {
                   return "/usr/lib/libobjc.A.dylib";
               }
               return real_name;
           }
 
-          // هوك dlsym - يقوم بتسميم النتائج العائدة لـ IDA qword_10A21F708
+          // هوك dlsym - يقوم بتسميم النتائج العائدة لـ IDA
           void* hk_dlsym(void* handle, const char* symbol) {
-              // 🔥 حماية من الكراش: تأكد أن الرمز ليس فارغاً (تمنع EXC_BAD_ACCESS)
+              // حماية من الكراش (EXC_BAD_ACCESS)
               if (!symbol) return orig_dlsym(handle, symbol);
 
               if (strcmp(symbol, "_dyld_get_image_name") == 0) {
-                  return (void*)hk_dyld_get_image_name;
+                  return (void*)hk_dyld_get_image_name; // تقديم الدالة المسمومة
               }
               return orig_dlsym(handle, symbol);
           }
 
           __attribute__((constructor(101)))
           static void initialize_fortress() {
-              // الحصول على عناوين الدوال الأصلية بأمان
-              void* dlsym_ptr = dlsym(RTLD_DEFAULT, "dlsym");
+              // الحصول على العنوان الأصلي لدالة فحص الملفات
               orig_dyld_get_image_name = (const char* (*)(uint32_t))dlsym(RTLD_DEFAULT, "_dyld_get_image_name");
 
-              // تفعيل عملية الحقن باستخدام محرك Dobby
-              if (dlsym_ptr) {
-                  DobbyHook(dlsym_ptr, (void*)hk_dlsym, (void**)&orig_dlsym);
-              }
+              // استخدام Fishhook لتبديل العناوين بجداول الذاكرة (آمن جداً بدون جلبريك)
+              struct rebinding rebinds[] = {
+                  {"dlsym", (void *)hk_dlsym, (void **)&orig_dlsym}
+              };
               
-              NSLog(@"[V-MAX PoC] 🏰 Security Shield Integrated Successfully. dlsym is poisoned.");
+              rebind_symbols(rebinds, 1);
+              
+              NSLog(@"[V-MAX PoC] 🏰 No-JB Security Shield Integrated. dlsym is poisoned via Fishhook.");
           }
           EOF
 
-      - name: 🚀 Compile Professional Dylib (Fixed Linking)
+      - name: 🚀 Compile Professional Dylib
         run: |
-          # 🔥 إصلاح خطأ expected unqualified-id بالفصل الصحيح للمكتبة
+          # تجميع الكود مع ملفات Fishhook لإنتاج دايلب مستقر
           clang++ -dynamiclib -std=c++11 \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
           -arch arm64 \
-          -I./include \
-          jni/main.mm \
-          Dobby/build/libdobby.a \
+          jni/main.mm jni/fishhook.c \
           -o Masoud-VMAX-Elite.dylib \
           -framework Foundation -framework UIKit -lobjc \
           -install_name @rpath/Masoud-VMAX-Elite.dylib
           
-          # مسح الرموز لزيادة مستوى التخفي
+          # مسح الرموز الدلالية للتخفي
           strip -x Masoud-VMAX-Elite.dylib
 
       - name: 📦 Archive Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Masoud-Elite-Fortress-PoC
+          name: Masoud-Elite-Fortress-PoC-NoJB
           path: Masoud-VMAX-Elite.dylib
