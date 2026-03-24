@@ -1,4 +1,4 @@
-name: Imperial V-MAX - Masterpiece (Offset 0x459C + Safe Login)
+name: Imperial V-MAX - Chameleon Shield (Radar + Spoof)
 
 on:
   push:
@@ -6,163 +6,173 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_masterpiece:
-    name: Compile The Masterpiece Dylib
+  build_chameleon:
+    name: Compile Chameleon Shield Dylib
     runs-on: macos-latest
 
     steps:
-      - name: Checkout Code
+      - name: 📥 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Download Fishhook
+      - name: 🎣 Fetch Fishhook (Safe Hooking)
         run: |
           mkdir -p jni
-          curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.c -o jni/fishhook.cpp
+          curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.c -o jni/fishhook.c
           curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.h -o jni/fishhook.h
 
-      - name: Generate C++ Payload (Main.mm)
+      - name: 🧪 Generate Chameleon Source (Main.mm)
         run: |
           cat <<'EOF' > jni/main.mm
           #import <Foundation/Foundation.h>
-          #import <mach-o/dyld.h>
+          #import <UIKit/UIKit.h>
+          #import <objc/runtime.h>
+          #import <sys/stat.h>
           #import <dlfcn.h>
-          #import <sys/sysctl.h>
+          #import <mach-o/dyld.h>
           #include "fishhook.h"
 
           /**
-           * ========================================================
-           * 🛡️ MASOUD MASTERPIECE (THE ULTIMATE BYPASS)
-           * 🎯 TARGET: OFFSET 0x459C
-           * ✅ SAFE LOGIN (No sel_registerName blocking)
-           * 🚫 OFFLINE MODE (No Radar/TCP to prevent 10m bans)
-           * ========================================================
+           * 🛡️ PROJECT: THE CHAMELEON SHIELD (RADAR + HEAVY SPOOFING)
+           * 👨‍💻 RESEARCHER: MASOUD (NASIRIYAH)
+           * 🎯 GOAL: Protect the RET Patch (C0035FD6) & Monitor Activity
            */
-           
-          static uintptr_t g_anogs_base = 0;
-          static uintptr_t g_anogs_slide = 0;
-          static uintptr_t g_anogs_end = 0;
-          static bool g_anogs_found = false;
 
-          static int (*orig_sysctlbyname)(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen);
+          // ⚠️ رابط سيرفر مسعود
+          #define RADAR_SERVER_URL @"http://44.192.33.117:8080"
+
+          // ==========================================
+          // 📡 نظام الرادار والإرسال
+          // ==========================================
+          void SendToRadar(NSString *action, NSString *target, NSString *threatLevel) {
+              dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
+                  NSDictionary *payload = @{
+                      @"func": action,
+                      @"target": target,
+                      @"threat": threatLevel,
+                      @"caller": @"System_Shield"
+                  };
+                  NSData *jsonData = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];
+                  if (jsonData) {
+                      NSURL *url = [NSURL URLWithString:RADAR_SERVER_URL];
+                      NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
+                      [req setHTTPMethod:@"POST"];
+                      [req setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+                      [req setHTTPBody:jsonData];
+                      req.timeoutInterval = 3.0; // مهلة قصيرة لمنع اللاك
+                      [[[NSURLSession sharedSession] dataTaskWithRequest:req] resume];
+                  }
+              });
+          }
+
+          // ==========================================
+          // 🎭 التمويه العميق (Objective-C Swizzling)
+          // ==========================================
+          void SafeSwizzle(Class c, SEL orig, IMP newImp, IMP* oldImp) {
+              Method m = class_getInstanceMethod(c, orig);
+              if (!m) m = class_getClassMethod(c, orig);
+              if (m) { *oldImp = method_getImplementation(m); method_setImplementation(m, newImp); }
+          }
+
+          // 1. تزييف الروابط (منع تقارير الباند الـ 10 دقايق)
+          typedef id (*URLWithString_t)(id, SEL, NSString *);
+          static URLWithString_t orig_URLWithString;
+          id hk_URLWithString(id self, SEL _cmd, NSString *urlStr) {
+              if (urlStr && [urlStr isKindOfClass:[NSString class]]) {
+                  // تحويل روابط التجسس إلى لوكال هوست
+                  if ([urlStr containsString:@"tdatamaster"] || [urlStr containsString:@"crashsight"] || [urlStr containsString:@"anogs"]) {
+                      SendToRadar(@"BLOCKED_URL", urlStr, @"WARNING");
+                      return orig_URLWithString(self, _cmd, @"http://127.0.0.1");
+                  }
+              }
+              return orig_URLWithString(self, _cmd, urlStr);
+          }
+
+          // ==========================================
+          // 🛡️ التمويه الهيكلي (C-Functions Hooking)
+          // ==========================================
           static void* (*orig_dlsym)(void* handle, const char* symbol);
-          static FILE* (*orig_fopen)(const char *filename, const char *mode);
+          static const char* (*orig_dyld_get_image_name)(uint32_t image_index);
           static int (*orig_access)(const char *path, int amode);
 
-          // حساب الأوفست الدقيق لضمان استهداف anogs فقط
-          uintptr_t GetExactAnogsOffset() {
-              if (!g_anogs_found) return 0;
-              uintptr_t ret_addr = (uintptr_t)__builtin_return_address(0);
-              if (ret_addr >= g_anogs_base && ret_addr < g_anogs_end) {
-                  return ret_addr - g_anogs_slide;
+          // 2. إخفاء الدايلب من الذاكرة
+          const char* hk_dyld_get_image_name(uint32_t image_index) {
+              const char* real_name = orig_dyld_get_image_name(image_index);
+              if (real_name && (strstr(real_name, "Masoud") || strstr(real_name, "Chameleon"))) {
+                  return "/usr/lib/libobjc.A.dylib"; // اسم وهمي نقي
               }
-              return 0;
+              return real_name;
           }
 
-          // ==========================================
-          // ⚔️ جدار الحماية الذكي والموجه (Sniper Mode)
-          // ==========================================
-
-          int hk_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-              return orig_sysctlbyname(name, oldp, oldlenp, newp, newlen);
-          }
-
+          // 3. إعماء الحماية عن أدوات الجلبريك والـ Fishhook
           void* hk_dlsym(void* handle, const char* symbol) {
-              uintptr_t offset = GetExactAnogsOffset();
+              if (!symbol) return orig_dlsym(handle, symbol);
 
-              if (offset > 0 && symbol) {
-                  NSString *symStr = [NSString stringWithUTF8String:symbol];
-                  
-                  // 🔥 السحر هنا: نتدخل فقط في منطقة الخطر (أوفست مسعود 0x459C)
-                  if (offset > 0x4500 && offset < 0x4600) {
-                      
-                      // حظر أدوات الهاك فقط، السماح لدوال النظام بالمرور لنجاح تسجيل الدخول
-                      NSArray *cheat_symbols = @[@"ptrace", @"MSHook", @"Substrate", @"fishhook", @"Cydia"];
-                      
-                      for (NSString *cheat in cheat_symbols) {
-                          if ([symStr containsString:cheat]) {
-                              NSLog(@"[MASOUD SNIPER] HEADSHOT! Blocked Cheat Search at 0x%lx: %@", offset, symStr);
-                              return NULL; // إعماء الجاسوس
-                          }
-                      }
+              // إخفاء الدايلب
+              if (strcmp(symbol, "_dyld_get_image_name") == 0) {
+                  return (void*)hk_dyld_get_image_name;
+              }
+
+              // حجب أدوات الهاك
+              NSString *symStr = [NSString stringWithUTF8String:symbol];
+              NSArray *cheats = @[@"ptrace", @"MSHook", @"Substrate", @"fishhook", @"Cydia"];
+              for (NSString *cheat in cheats) {
+                  if ([symStr containsString:cheat]) {
+                      SendToRadar(@"BLOCKED_DLSYM", symStr, @"CRITICAL");
+                      return NULL; // نرجع NULL كأن الأداة غير موجودة
                   }
               }
               return orig_dlsym(handle, symbol);
           }
 
-          FILE* hk_fopen(const char *filename, const char *mode) {
-              uintptr_t offset = GetExactAnogsOffset();
-              if (offset > 0 && filename) {
-                  NSString *fileStr = [NSString stringWithUTF8String:filename];
-                  
-                  // منطقة قراءة الملفات (حول الأوفست 0x4664 اللي صدناه سابقاً)
-                  if (offset > 0x4600 && offset < 0x4700) {
-                      if ([fileStr containsString:@"Cydia"] || [fileStr containsString:@"TDM_KV"] || [fileStr containsString:@"Masoud"]) {
-                          NSLog(@"[MASOUD SNIPER] Blocked File Read at 0x%lx: %@", offset, fileStr);
-                          return NULL; 
-                      }
-                  }
-              }
-              return orig_fopen(filename, mode);
-          }
-          
+          // 4. إخفاء الملفات الحساسة
           int hk_access(const char *path, int amode) {
-              uintptr_t offset = GetExactAnogsOffset();
-              if (offset > 0 && path) {
+              if (path) {
                   NSString *pathStr = [NSString stringWithUTF8String:path];
-                  
-                  if (offset > 0x4600 && offset < 0x4700) {
-                      if ([pathStr containsString:@"Cydia"] || [pathStr containsString:@"TDM_KV"]) {
-                          return -1; 
-                      }
+                  if ([pathStr containsString:@"Cydia"] || [pathStr containsString:@"Masoud"] || [pathStr containsString:@"embedded.mobileprovision"]) {
+                      SendToRadar(@"BLOCKED_FILE", pathStr, @"WARNING");
+                      return -1; // -1 تعني أن الملف غير موجود
                   }
               }
               return orig_access(path, amode);
           }
 
           // ==========================================
-          // 🚀 التهيئة
+          // 🚀 نقطة التشغيل
           // ==========================================
-          void InitializeGhostMap() {
-              dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
-                  while (!g_anogs_found) {
-                      for (uint32_t i = 0; i < _dyld_image_count(); i++) {
-                          if (strstr(_dyld_get_image_name(i), "anogs")) {
-                              g_anogs_slide = _dyld_get_image_vmaddr_slide(i);
-                              g_anogs_base = (uintptr_t)_dyld_get_image_header(i);
-                              g_anogs_end = g_anogs_base + 0x8000000;
-                              g_anogs_found = true;
-                              NSLog(@"[MASOUD LAB] 🛡️ MASTERPIECE LOADED! Watching 0x459C...");
-                              break;
-                          }
-                      }
-                      if (!g_anogs_found) sleep(1);
-                  }
-              });
-          }
-
           __attribute__((constructor))
-          static void start_masterpiece() {
-              struct rebinding hooks[] = {
-                  {"sysctlbyname", (void *)hk_sysctlbyname, (void **)&orig_sysctlbyname},
-                  {"dlsym", (void *)hk_dlsym, (void **)&orig_dlsym},
-                  {"fopen", (void *)hk_fopen, (void **)&orig_fopen},
-                  {"access", (void *)hk_access, (void **)&orig_access}
-              };
-              rebind_symbols(hooks, 4);
-              InitializeGhostMap();
+          static void deploy_chameleon_shield() {
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                  
+                  // تفعيل تمويه الروابط
+                  SafeSwizzle([NSURL class], @selector(URLWithString:), (IMP)hk_URLWithString, (IMP*)&orig_URLWithString);
+
+                  // تفعيل تمويه الذاكرة والملفات
+                  orig_dyld_get_image_name = (const char* (*)(uint32_t))dlsym(RTLD_DEFAULT, "_dyld_get_image_name");
+                  
+                  struct rebinding rebinds[] = {
+                      {"dlsym", (void *)hk_dlsym, (void **)&orig_dlsym},
+                      {"access", (void *)hk_access, (void **)&orig_access}
+                  };
+                  rebind_symbols(rebinds, 2);
+
+                  // إرسال إشارة الحياة للرادار
+                  SendToRadar(@"RADAR_INIT", @"Chameleon Shield Active", @"INFO");
+                  NSLog(@"[MASOUD LAB] 🦎 Chameleon Shield Deployed Successfully.");
+              });
           }
           EOF
 
-      - name: Compile Masterpiece
+      - name: 🚀 Compile Chameleon Dylib
         run: |
           clang++ -dynamiclib -std=c++11 -arch arm64 \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-          jni/main.mm jni/fishhook.cpp -o Masoud-Masterpiece.dylib \
-          -framework Foundation
-          strip -x Masoud-Masterpiece.dylib
+          jni/main.mm jni/fishhook.c \
+          -o Masoud-Chameleon-Shield.dylib \
+          -framework Foundation -framework UIKit -lobjc
+          strip -x Masoud-Chameleon-Shield.dylib
 
-      - name: Upload Artifact
+      - name: 📦 Upload Final Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Masoud-Masterpiece
-          path: Masoud-Masterpiece.dylib
+          name: Masoud-Chameleon-Shield
+          path: Masoud-Chameleon-Shield.dylib
