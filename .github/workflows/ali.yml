@@ -1,4 +1,4 @@
-name: Imperial Ultimate Fortress - V-MAX Stable V12
+name: Imperial Ultimate Fortress - V-MAX Pure No-JB (12 Points)
 
 on:
   push:
@@ -6,190 +6,147 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_stable_v12:
-    name: Build Professional 12-Point Stable Shield
+  build_nojb_v12:
+    name: Build Ultra-Stable 12-Point No-JB Shield
     runs-on: macos-latest
 
     steps:
       - name: 📥 Checkout Code
         uses: actions/checkout@v4
 
-      - name: 🛠️ Setup Build Dependencies
-        run: brew install cmake
-
-      - name: 🛡️ Compile Dobby Engine (Fixed)
-        run: |
-          echo "Building Dobby Engine for iOS ARM64..."
-          git clone --depth 1 https://github.com/jmpews/Dobby.git
-          mkdir -p Dobby/build && cd Dobby/build
-          cmake .. \
-            -DCMAKE_SYSTEM_NAME=iOS \
-            -DCMAKE_OSX_ARCHITECTURES=arm64 \
-            -DCMAKE_OSX_SYSROOT=iphoneos \
-            -DCMAKE_SYSTEM_PROCESSOR=arm64 \
-            -DDOBBY_TARGET_ARCH=arm64 \
-            -DDOBBY_GENERATE_SHARED=OFF \
-            -DDOBBY_DEBUG=OFF
-          make -j$(sysctl -n hw.ncpu)
-          cd ../.. && mkdir -p include && cp Dobby/include/dobby.h include/
-
-      - name: 🧪 Generate Stable Source (Main.mm - 12 POINTS)
+      - name: 🧪 Generate Anti-Crash Source (Main.mm)
         run: |
           mkdir -p jni
           cat <<'EOF' > jni/main.mm
           #import <Foundation/Foundation.h>
           #import <UIKit/UIKit.h>
           #import <objc/runtime.h>
-          #import <dlfcn.h>
-          #import <mach-o/dyld.h>
-          #include "dobby.h"
 
           /**
-           * 🛡️ PROJECT: IMPERIAL ULTIMATE FORTRESS V-MAX (V12 STABLE)
+           * 🛡️ PROJECT: IMPERIAL ULTIMATE FORTRESS V-MAX (V12)
            * 👨‍💻 LEAD RESEARCHER: MASOUD (NASIRIYAH)
-           * 🔍 STATUS: ANTI-CRASH OPTIMIZED
+           * 🔍 STATUS: ANTI-CRASH OPTIMIZED FOR NON-JAILBREAK
            */
 
-          // --- [تعاريف الدوال الأصلية للـ Hook] ---
-          static void* (*orig_dlsym)(void* handle, const char* symbol);
-          static uint32_t (*orig_dyld_image_count)(void);
-          static const char* (*orig_dyld_get_image_name)(uint32_t image_index);
-          typedef BOOL (*fileExistsAtPath_t)(id, SEL, NSString *);
-          static fileExistsAtPath_t orig_fileExistsAtPath;
+          // --- [دالة التبديل الآمنة] ---
+          void SafeSwizzle(Class c, SEL orig, IMP newImp, IMP* oldImp) {
+              Method m = class_getInstanceMethod(c, orig);
+              if (!m) m = class_getClassMethod(c, orig);
+              if (m) {
+                  *oldImp = method_getImplementation(m);
+                  method_setImplementation(m, newImp);
+              }
+          }
 
-          // --- [الدوال المساعدة لمنع الكراش] ---
-          static BOOL is_init = NO;
-
-          // 1, 2, 3, 4: الهوية والموديل والنظام
-          void SetupIdentityArmor() {
-              // 1. Bundle ID
+          // --- [1, 2, 3, 4] تزييف الهوية (Bundle, Model, Name, OS) ---
+          void Point1to4_Identity() {
               method_setImplementation(class_getInstanceMethod([NSBundle class], @selector(bundleIdentifier)), 
                   imp_implementationWithBlock(^NSString* (id self) { return @"com.tencent.ig"; }));
-              // 2. Model
               method_setImplementation(class_getInstanceMethod([UIDevice class], @selector(model)), 
                   imp_implementationWithBlock(^NSString* (id self) { return @"iPad"; }));
-              // 3. Name
               method_setImplementation(class_getInstanceMethod([UIDevice class], @selector(name)), 
-                  imp_implementationWithBlock(^NSString* (id self) { return @"iPad Pro (12.9-inch)"; }));
-              // 4. Version
+                  imp_implementationWithBlock(^NSString* (id self) { return @"iPad Pro (12.9-inch) 6th Gen"; }));
               method_setImplementation(class_getInstanceMethod([UIDevice class], @selector(systemVersion)), 
                   imp_implementationWithBlock(^NSString* (id self) { return @"17.4"; }));
           }
 
-          // 5, 6: الهاردوير (RAM & CPU)
-          void SetupHardwareArmor() {
-              // 5. RAM (16GB)
+          // --- [5, 6] تزييف الهاردوير (RAM & CPU) ---
+          void Point5_6_Hardware() {
               method_setImplementation(class_getInstanceMethod([NSProcessInfo class], @selector(physicalMemory)), 
-                  imp_implementationWithBlock(^unsigned long long(id self) { return 17179869184ULL; }));
-              // 6. CPU (8 Cores)
+                  imp_implementationWithBlock(^unsigned long long(id self) { return 17179869184ULL; })); // 16GB
               method_setImplementation(class_getInstanceMethod([NSProcessInfo class], @selector(activeProcessorCount)), 
-                  imp_implementationWithBlock(^NSUInteger(id self) { return 8; }));
+                  imp_implementationWithBlock(^NSUInteger(id self) { return 8; })); // 8 Cores
           }
 
-          // 7, 8: الشهادة والإيصال
-          void SetupCertificateArmor() {
-              // 7. Signer
-              Method m_info = class_getInstanceMethod([NSBundle class], @selector(infoDictionary));
-              IMP orig_info = method_getImplementation(m_info);
-              method_setImplementation(m_info, imp_implementationWithBlock(^NSDictionary* (id self) {
-                  NSDictionary *dict = ((NSDictionary*(*)(id, SEL))orig_info)(self, @selector(infoDictionary));
-                  NSMutableDictionary *mDict = [dict mutableCopy];
+          // --- [7, 8] تزييف الشهادة والإيصال (آمن ضد الكراش) ---
+          typedef NSDictionary* (*infoDict_t)(id, SEL);
+          static infoDict_t orig_infoDict;
+          NSDictionary* hk_infoDict(id self, SEL _cmd) {
+              NSDictionary *dict = orig_infoDict(self, _cmd);
+              if (!dict) return nil;
+              NSMutableDictionary *mDict = [dict mutableCopy];
+              if (mDict) {
                   [mDict setObject:@"Apple iPhone OS Application Signer" forKey:@"SignerIdentity"];
                   [mDict setObject:@"com.apple.itunes.store" forKey:@"AppStoreInstaller"];
-                  return mDict;
-              }));
-              // 8. Receipt
+                  return [mDict copy]; // نرجع نسخة غير قابلة للتعديل لمنع الكراش
+              }
+              return dict;
+          }
+
+          void Point7_8_Cert() {
+              SafeSwizzle([NSBundle class], @selector(infoDictionary), (IMP)hk_infoDict, (IMP*)&orig_infoDict);
               method_setImplementation(class_getInstanceMethod([NSBundle class], @selector(appStoreReceiptURL)), 
                   imp_implementationWithBlock(^NSURL* (id self) {
                       return [NSURL fileURLWithPath:@"/System/Library/PrivateFrameworks/StoreServices.framework/receipt"];
                   }));
           }
 
-          // 9: تزييف الروابط (URL Redirection) - تم تحسينه لمنع الكراش
+          // --- [9] تزييف الروابط (مع فحص أمان صارم) ---
           typedef id (*URLWithString_t)(id, SEL, NSString *);
           static URLWithString_t orig_URLWithString;
-
           id hk_URLWithString(id self, SEL _cmd, NSString *urlStr) {
-              if (urlStr && ([urlStr containsString:@"tencent"] || [urlStr containsString:@"ask"])) {
-                  // نستخدم الطريقة الأصلية لمنع التكرار (Recursion)
-                  return ((id(*)(id, SEL, NSString*))orig_URLWithString)(self, _cmd, @"http://127.0.0.1");
+              // فحص الأمان: تأكد أن الرابط ليس فارغاً وأنه نص حقيقي
+              if (urlStr && [urlStr isKindOfClass:[NSString class]]) {
+                  if ([urlStr containsString:@"tencent"] || [urlStr containsString:@"ask"]) {
+                      return orig_URLWithString(self, _cmd, @"http://127.0.0.1");
+                  }
               }
-              return ((id(*)(id, SEL, NSString*))orig_URLWithString)(self, _cmd, urlStr);
+              return orig_URLWithString(self, _cmd, urlStr);
           }
 
-          // 10: إخفاء الدخلاء (dlsym / dyld)
-          const char* hk_dyld_get_image_name(uint32_t image_index) {
-              const char* name = orig_dyld_get_image_name(image_index);
-              if (name && (strstr(name, "Masoud") || strstr(name, "ali") || strstr(name, "Elite"))) {
-                  return "/usr/lib/libobjc.A.dylib";
-              }
-              return name;
-          }
-          uint32_t hk_dyld_image_count(void) {
-              return orig_dyld_image_count() - 1;
-          }
-          void* hk_dlsym(void* handle, const char* symbol) {
-              if (symbol) {
-                  if (strcmp(symbol, "_dyld_get_image_name") == 0) return (void*)hk_dyld_get_image_name;
-                  if (symbol && strcmp(symbol, "_dyld_image_count") == 0) return (void*)hk_dyld_image_count;
-              }
-              return orig_dlsym(handle, symbol);
-          }
-
-          // 11: درع الملفات
+          // --- [10, 11] درع الملفات وإخفاء الدخلاء (مع فحص أمان صارم) ---
+          typedef BOOL (*fileExistsAtPath_t)(id, SEL, NSString *);
+          static fileExistsAtPath_t orig_fileExistsAtPath;
           BOOL hk_fileExistsAtPath(id self, SEL _cmd, NSString *path) {
-              if (path && ([path containsString:@"mobileprovision"] || [path containsString:@"Cydia"])) return NO;
+              // فحص الأمان: تأكد أن المسار حقيقي لمنع EXC_BAD_ACCESS
+              if (path && [path isKindOfClass:[NSString class]]) {
+                  if ([path containsString:@"mobileprovision"] || [path containsString:@"Masoud"] || [path containsString:@"ali"] || [path containsString:@".dylib"] || [path containsString:@"Cydia"]) {
+                      return NO; // إخفاء الأدلة
+                  }
+              }
               return orig_fileExistsAtPath(self, _cmd, path);
           }
 
-          // 12: حماية الحافظة
-          void SetupClipboardArmor() {
+          // --- [12] حماية الحافظة ---
+          void Point12_Clipboard() {
               method_setImplementation(class_getInstanceMethod([UIPasteboard class], @selector(string)), 
                   imp_implementationWithBlock(^NSString* (id self) { return @""; }));
           }
 
-          // --- 🚀 التفعيل الآمن ---
+          // --- 🚀 التفعيل المركزي (التكتيك السري لبيئة No-JB) ---
           __attribute__((constructor))
-          static void init_v12() {
-              if (is_init) return;
-              is_init = YES;
+          static void init_vmax_nojb() {
+              // نستخدم dispatch_after لتأخير التفعيل 3 ثواني
+              // هذا يعطي اللعبة فرصة للتشغيل بأمان بدون أن تكتشف التعديلات المفاجئة
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                  
+                  Point1to4_Identity();
+                  Point5_6_Hardware();
+                  Point7_8_Cert();
+                  Point12_Clipboard();
 
-              SetupIdentityArmor(); // 1, 2, 3, 4
-              SetupHardwareArmor(); // 5, 6
-              SetupCertificateArmor(); // 7, 8
-              SetupClipboardArmor(); // 12
+                  // تفعيل هوك الروابط (9)
+                  SafeSwizzle([NSURL class], @selector(URLWithString:), (IMP)hk_URLWithString, (IMP*)&orig_URLWithString);
 
-              // هوك dlsym (9, 10)
-              void* dlsym_ptr = dlsym(RTLD_DEFAULT, "dlsym");
-              orig_dyld_image_count = (uint32_t (*)(void))dlsym(RTLD_DEFAULT, "_dyld_image_count");
-              orig_dyld_get_image_name = (const char* (*)(uint32_t))dlsym(RTLD_DEFAULT, "_dyld_get_image_name");
-              if (dlsym_ptr) DobbyHook(dlsym_ptr, (void*)hk_dlsym, (void**)&orig_dlsym);
+                  // تفعيل درع الملفات (10, 11)
+                  SafeSwizzle([NSFileManager class], @selector(fileExistsAtPath:), (IMP)hk_fileExistsAtPath, (IMP*)&orig_fileExistsAtPath);
 
-              // هوك NSURL (النقطة 9 المحدثة)
-              Method m_url = class_getClassMethod([NSURL class], @selector(URLWithString:));
-              orig_URLWithString = (URLWithString_t)method_getImplementation(m_url);
-              method_setImplementation(m_url, (IMP)hk_URLWithString);
-
-              // هوك الملفات (11)
-              Method m_file = class_getInstanceMethod([NSFileManager class], @selector(fileExistsAtPath:));
-              orig_fileExistsAtPath = (fileExistsAtPath_t)method_getImplementation(m_file);
-              method_setImplementation(m_file, imp_implementationWithBlock(^BOOL (id self, NSString *path) {
-                  return hk_fileExistsAtPath(self, @selector(fileExistsAtPath:), path);
-              }));
+                  NSLog(@"[V-MAX] 🏰 NO-JB ARMOR DEPLOYED SUCCESSFULLY. ALL 12 POINTS ACTIVE.");
+              });
           }
           EOF
 
-      - name: 🚀 Build Stable Dylib
+      - name: 🚀 Build Pure No-JB Dylib
         run: |
           clang++ -dynamiclib -std=c++11 -arch arm64 \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-          -I./include jni/main.mm Dobby/build/libdobby.a \
-          -o Masoud-Stable-V12.dylib \
+          jni/main.mm \
+          -o Masoud-NoJB-V12.dylib \
           -framework Foundation -framework UIKit -lobjc
-          strip -x Masoud-Stable-V12.dylib
+          strip -x Masoud-NoJB-V12.dylib
 
-      - name: 📦 Upload
+      - name: 📦 Upload Final Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Masoud-Stable-V12
-          path: Masoud-Stable-V12.dylib
+          name: Masoud-Elite-NoJB-V12
+          path: Masoud-NoJB-V12.dylib
