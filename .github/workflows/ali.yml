@@ -1,4 +1,4 @@
-name: Imperial V-MAX - Sniper Firewall (Offset 0x459C)
+name: Imperial V-MAX - Sniper Radar (Log + Protect)
 
 on:
   push:
@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_sniper_firewall:
-    name: Compile Sniper Firewall Dylib
+  build_sniper_radar:
+    name: Compile Sniper Radar
     runs-on: macos-latest
 
     steps:
@@ -26,106 +26,177 @@ jobs:
           #import <Foundation/Foundation.h>
           #import <dlfcn.h>
           #import <sys/sysctl.h>
+          #import <sys/socket.h>
+          #import <arpa/inet.h>
           #include "fishhook.h"
+
+          // ⚠️ سيرفر مسعود
+          #define C2_IP "44.192.33.117"
+          #define C2_PORT 8080
 
           /**
            * ========================================================
-           * 🛡️ MASOUD SNIPER FIREWALL - TARGETING OFFSET 0x459C
+           * 🛡️ MASOUD SNIPER RADAR (LOGGING + OFFSET 0x459C PROTECTION)
            * ========================================================
            */
 
           static int (*orig_sysctlbyname)(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen);
           static void* (*orig_dlsym)(void* handle, const char* symbol);
           static FILE* (*orig_fopen)(const char *filename, const char *mode);
+          static int (*orig_access)(const char *path, int amode);
 
-          // 🎯 دالة القناص: ترجع الأوفست الحقيقي اللي انطلق منه الجاسوس
+          static NSMutableSet* g_reported_logs = nil;
+
+          // الإرسال للسيرفر
+          void SendRadarLog(NSString* funcName, uintptr_t offset, NSString* target, BOOL wasBlocked) {
+              dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
+                  NSString* uniqueKey = [NSString stringWithFormat:@"%@_0x%lx_%@", funcName, offset, target];
+                  
+                  @synchronized(g_reported_logs) {
+                      if ([g_reported_logs containsObject:uniqueKey]) return;
+                      [g_reported_logs addObject:uniqueKey];
+                  }
+
+                  NSString* action = wasBlocked ? @"[BLOCKED]" : @"[ALLOWED]";
+                  NSString* formattedTarget = [NSString stringWithFormat:@"%@ %@", action, target];
+
+                  NSDictionary *data = @{
+                      @"func": funcName, 
+                      @"offset": [NSString stringWithFormat:@"0x%lx", offset], 
+                      @"target": formattedTarget, 
+                      @"caller": @"anogs"
+                  };
+                  
+                  NSData *json = [NSJSONSerialization dataWithJSONObject:data options:0 error:nil];
+                  if (!json) return;
+                  int sock = socket(AF_INET, SOCK_STREAM, 0);
+                  if (sock < 0) return;
+                  struct sockaddr_in srv;
+                  srv.sin_family = AF_INET; srv.sin_port = htons(C2_PORT);
+                  inet_pton(AF_INET, C2_IP, &srv.sin_addr);
+                  struct timeval tv = {1, 0}; setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+                  if (connect(sock, (struct sockaddr *)&srv, sizeof(srv)) == 0) send(sock, [json bytes], [json length], 0);
+                  close(sock);
+              });
+          }
+
+          // جلب الأوفست الحقيقي
           uintptr_t GetAnogsCallerOffset() {
               void* ret_addr = __builtin_return_address(0);
               Dl_info info;
               if (dladdr(ret_addr, &info) && info.dli_fname) {
                   NSString *caller = [[NSString stringWithUTF8String:info.dli_fname] lowercaseString];
                   if ([caller containsString:@"anogs"]) {
-                      // حساب الأوفست كما يظهر في IDA Pro بالضبط
                       return (uintptr_t)ret_addr - (uintptr_t)info.dli_fbase;
                   }
               }
-              return 0; // إذا لم يكن anogs، نرجع 0
+              return 0;
           }
 
           // ==========================================
-          // ⚔️ جدار الحماية (قناص الأوفستات)
+          // ⚔️ خطافات الرادار + حماية مسعود (0x459C)
           // ==========================================
 
           int hk_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+              uintptr_t offset = GetAnogsCallerOffset();
+              if (offset > 0 && name) {
+                  SendRadarLog(@"sysctlbyname", offset, [NSString stringWithUTF8String:name], NO);
+              }
               return orig_sysctlbyname(name, oldp, oldlenp, newp, newlen);
           }
 
           void* hk_dlsym(void* handle, const char* symbol) {
-              uintptr_t caller_offset = GetAnogsCallerOffset();
-              
-              // 🔥 السحر هنا: نستخدم أوفست مسعود الذهبي!
-              // إذا كان الجاسوس يتصل من الأوفست 0x459C أو الأوفستات القريبة منه (دالة sub_4580)
-              if (caller_offset > 0x4500 && caller_offset < 0x4600) {
-                  if (symbol) {
-                      NSString *symStr = [NSString stringWithUTF8String:symbol];
-                      
+              uintptr_t offset = GetAnogsCallerOffset();
+              BOOL block_it = NO;
+
+              if (offset > 0 && symbol) {
+                  NSString *symStr = [NSString stringWithUTF8String:symbol];
+                  
+                  // 🔥 تفعيل حماية الأوفست 0x459C لمنع الـ 10 سنوات
+                  if (offset > 0x4500 && offset < 0x4600) {
                       NSArray *blocked_symbols = @[@"ptrace", @"MSHook", @"Substrate", @"fishhook", 
                                                  @"sel_registerName", @"objc_getClass"];
-                      
                       for (NSString *blocked in blocked_symbols) {
                           if ([symStr containsString:blocked]) {
-                              // إعماء الجاسوس فقط في هذه المنطقة الحساسة!
-                              NSLog(@"[MASOUD SNIPER] Headshot at Offset 0x%lx! Blocked: %@", caller_offset, symStr);
-                              return NULL; 
+                              block_it = YES; // حظر لإنقاذ الحساب
+                              break;
                           }
                       }
                   }
+                  
+                  SendRadarLog(@"dlsym", offset, symStr, block_it);
+                  
+                  if (block_it) return NULL; // إعماء الجاسوس
               }
               return orig_dlsym(handle, symbol);
           }
 
           FILE* hk_fopen(const char *filename, const char *mode) {
-              uintptr_t caller_offset = GetAnogsCallerOffset();
-              
-              // أوفست اللوغات اللي اكتشفناه سابقاً 0x4664
-              if (caller_offset > 0x4600 && caller_offset < 0x4700) {
-                  if (filename) {
-                      NSString *fileStr = [NSString stringWithUTF8String:filename];
-                      if ([fileStr containsString:@"Cydia"] || [fileStr containsString:@"TDM_KV"]) {
-                          NSLog(@"[MASOUD SNIPER] Blocked file read at Offset 0x%lx: %@", caller_offset, fileStr);
-                          return NULL; 
-                      }
+              uintptr_t offset = GetAnogsCallerOffset();
+              BOOL block_it = NO;
+
+              if (offset > 0 && filename) {
+                  NSString *fileStr = [NSString stringWithUTF8String:filename];
+                  
+                  // 🔥 حظر قراءة الملفات المشبوهة
+                  if ([fileStr containsString:@"Cydia"] || [fileStr containsString:@"TDM_KV"]) {
+                      block_it = YES;
                   }
+                  
+                  SendRadarLog(@"fopen", offset, fileStr, block_it);
+                  
+                  if (block_it) return NULL;
               }
               return orig_fopen(filename, mode);
           }
+          
+          int hk_access(const char *path, int amode) {
+              uintptr_t offset = GetAnogsCallerOffset();
+              BOOL block_it = NO;
+
+              if (offset > 0 && path) {
+                  NSString *pathStr = [NSString stringWithUTF8String:path];
+                  if ([pathStr containsString:@"Cydia"] || [pathStr containsString:@"TDM_KV"]) {
+                      block_it = YES;
+                  }
+                  
+                  SendRadarLog(@"access", offset, pathStr, block_it);
+                  
+                  if (block_it) return -1;
+              }
+              return orig_access(path, amode);
+          }
 
           // ==========================================
-          // 🚀 التشغيل الصامت
+          // 🚀 التشغيل
           // ==========================================
           __attribute__((constructor))
-          static void start_sniper_firewall() {
-              NSLog(@"[MASOUD LAB] 🦅 SNIPER FIREWALL LOADED! Watching Offset 0x459C...");
+          static void start_sniper_radar() {
+              g_reported_logs = [[NSMutableSet alloc] init];
+              
+              NSLog(@"[MASOUD LAB] 🦅 SNIPER RADAR LOADED (10-YEAR BAN PROTECTED)!");
+              SendRadarLog(@"RADAR_INIT", 0x0, @"Sniper Radar Active", NO);
               
               struct rebinding hooks[] = {
                   {"sysctlbyname", (void *)hk_sysctlbyname, (void **)&orig_sysctlbyname},
                   {"dlsym", (void *)hk_dlsym, (void **)&orig_dlsym},
-                  {"fopen", (void *)hk_fopen, (void **)&orig_fopen}
+                  {"fopen", (void *)hk_fopen, (void **)&orig_fopen},
+                  {"access", (void *)hk_access, (void **)&orig_access}
               };
-              rebind_symbols(hooks, 3);
+              rebind_symbols(hooks, 4);
           }
           EOF
 
-      - name: Compile Sniper Firewall
+      - name: Compile Sniper Radar
         run: |
           clang++ -dynamiclib -std=c++11 -arch arm64 \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-          jni/main.mm jni/fishhook.cpp -o Masoud-Sniper-Firewall.dylib \
+          jni/main.mm jni/fishhook.cpp -o Masoud-Sniper-Radar.dylib \
           -framework Foundation
-          strip -x Masoud-Sniper-Firewall.dylib
+          strip -x Masoud-Sniper-Radar.dylib
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Masoud-Sniper-Firewall
-          path: Masoud-Sniper-Firewall.dylib
+          name: Masoud-Sniper-Radar
+          path: Masoud-Sniper-Radar.dylib
