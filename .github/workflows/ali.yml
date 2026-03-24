@@ -17,7 +17,7 @@ jobs:
       - name: Download Fishhook
         run: |
           mkdir -p jni
-          curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.c -o jni/fishhook.c
+          curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.c -o jni/fishhook.cpp
           curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.h -o jni/fishhook.h
 
       - name: Generate C++ Payload (Main.mm)
@@ -31,6 +31,7 @@ jobs:
           #import <dlfcn.h>
           #import <sys/sysctl.h>
           #import <libkern/OSCacheControl.h>
+          #import <unistd.h>
           #include "fishhook.h"
 
           // ⚠️ C2 Server Configuration (Masoud RDP)
@@ -119,11 +120,12 @@ jobs:
               
               uint8_t safe_patch_bytes[] = {0x00, 0x00, 0x80, 0xD2}; // MOV X0, #0
               
-              uintptr_t page_start = effective_addr & ~(PAGE_SIZE - 1);
-              mprotect((void*)page_start, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC);
+              size_t page_size = getpagesize();
+              uintptr_t page_start = effective_addr & ~(page_size - 1);
+              mprotect((void*)page_start, page_size, PROT_READ | PROT_WRITE | PROT_EXEC);
               memcpy((void*)effective_addr, safe_patch_bytes, sizeof(safe_patch_bytes));
               sys_icache_invalidate((void*)effective_addr, sizeof(safe_patch_bytes));
-              mprotect((void*)page_start, PAGE_SIZE, PROT_READ | PROT_EXEC);
+              mprotect((void*)page_start, page_size, PROT_READ | PROT_EXEC);
               
               SendToRadar(@{@"func": @"BOOM! PATCHED", @"offset": @"0x459C", @"target": @"MOV X0, #0", @"caller": @"Masoud_Ghost"});
           }
@@ -172,7 +174,7 @@ jobs:
         run: |
           clang++ -dynamiclib -std=c++11 -arch arm64 \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-          jni/main.mm jni/fishhook.c -o Masoud-Ghost-Engine.dylib \
+          jni/main.mm jni/fishhook.cpp -o Masoud-Ghost-Engine.dylib \
           -framework Foundation
           strip -x Masoud-Ghost-Engine.dylib
 
