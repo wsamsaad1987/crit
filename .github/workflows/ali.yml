@@ -1,4 +1,4 @@
-name: Imperial V-MAX - Config Hijacker & Radar
+name: Imperial V-MAX - Mind Control Engine
 
 on:
   push:
@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_json_hijacker_radar:
-    name: Compile JSON Hijacker with Radar
+  build_mind_control:
+    name: Compile Mind Control Dylib
     runs-on: macos-latest
 
     steps:
@@ -20,145 +20,135 @@ jobs:
           cat <<'EOF' > jni/main.mm
           #import <Foundation/Foundation.h>
           #import <objc/runtime.h>
-          #import <sys/socket.h>
-          #import <arpa/inet.h>
-          #import <unistd.h>
 
           /**
            * ========================================================
-           * 🛡️ MASOUD CONFIG HIJACKER + RADAR (BULLETPROOF V2)
-           * 🎯 يخترق أوامر Tencent بأمان تام ولا يسبب فشل تسجيل الدخول
+           * 🛡️ MASOUD MIND CONTROL ENGINE (THE ULTIMATE BYPASS)
+           * 🎯 CAPABILITY 1: JSON Config Hijacking (Disable Anti-Cheat)
+           * 🎯 CAPABILITY 2: Fake Network Responses (Swallow Reports with 200 OK)
+           * 🚫 ZERO C-HOOKS. ZERO FISHHOOK. 100% UNDETECTABLE.
            * ========================================================
            */
 
-          // ⚠️ رابط سيرفر مسعود (RDP)
-          #define C2_IP "44.192.33.117"
-          #define C2_PORT 8080
-
-          // 📡 إرسال البيانات للترمنال عبر Raw TCP Socket (آمن وسريع)
-          void SendToRadar(NSString *funcName, NSString *targetInfo) {
-              dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
-                  @try {
-                      NSDictionary *data = @{
-                          @"func": funcName,
-                          @"target": targetInfo,
-                          @"caller": @"Masoud_Hijacker",
-                          @"threat": @"INFO"
-                      };
-                      NSData *json = [NSJSONSerialization dataWithJSONObject:data options:0 error:nil];
-                      if (!json) return;
-                      
-                      int sock = socket(AF_INET, SOCK_STREAM, 0);
-                      if (sock < 0) return;
-                      
-                      struct sockaddr_in srv;
-                      srv.sin_family = AF_INET; 
-                      srv.sin_port = htons(C2_PORT);
-                      inet_pton(AF_INET, C2_IP, &srv.sin_addr);
-                      
-                      // مهلة ثانية واحدة فقط حتى لا يسبب تقطيع باللعبة
-                      struct timeval tv = {1, 0}; 
-                      setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
-                      
-                      if (connect(sock, (struct sockaddr *)&srv, sizeof(srv)) == 0) {
-                          send(sock, [json bytes], [json length], 0);
-                      }
-                      close(sock);
-                  } @catch (NSException *e) {
-                      // التجاهل الصامت في حال فشل الشبكة
-                  }
-              });
+          // دالة مساعدة للتبديل الآمن (Swizzling)
+          void SafeSwizzle(Class c, SEL orig, IMP newImp, IMP* oldImp) {
+              Method m = class_getInstanceMethod(c, orig);
+              if (!m) m = class_getClassMethod(c, orig);
+              if (m) { *oldImp = method_getImplementation(m); method_setImplementation(m, newImp); }
           }
 
-          // حفظ الدالة الأصلية لقراءة الـ JSON
+          // ==========================================
+          // 🧠 1. غسيل الدماغ (اختراق أوامر السيرفر JSON)
+          // ==========================================
           static id (*orig_JSONObjectWithData)(Class, SEL, NSData *, NSJSONReadingOptions, NSError **);
 
-          // 🔄 الدالة المخترقة (المحصنة ضد الكراش)
           id hk_JSONObjectWithData(Class self, SEL _cmd, NSData *data, NSJSONReadingOptions opt, NSError **err) {
-              // 1. تشغيل الدالة الأصلية والسماح لتسجيل الدخول بالمرور بسلام
               id result = orig_JSONObjectWithData(self, _cmd, data, opt, err);
 
-              // 2. درع الحماية من الكراش (إذا فشل الاختراق، ترجع النتيجة الأصلية)
               @try {
                   if ([result isKindOfClass:[NSDictionary class]]) {
                       NSDictionary *dict = (NSDictionary *)result;
 
-                      // 3. هل هذا هو ملف الجاسوس (getconfig)؟
+                      // هل هذا ملف getconfig الخاص بالحماية؟
                       if (dict[@"biz_data"] && dict[@"biz_data"][@"merged_cfg"]) {
                           
-                          // 🔥 السر الهندسي: إعادة تحويل البيانات إلى صيغة "قابلة للتعديل 100%"
+                          // إعادة تحويل البيانات إلى صيغة قابلة للتعديل
                           NSData *rawDictData = [NSJSONSerialization dataWithJSONObject:dict options:0 error:nil];
                           NSMutableDictionary *mDict = [NSJSONSerialization JSONObjectWithData:rawDictData options:NSJSONReadingMutableContainers error:nil];
 
                           if (mDict && mDict[@"biz_data"] && mDict[@"biz_data"][@"merged_cfg"]) {
                               NSMutableDictionary *mergedCfg = mDict[@"biz_data"][@"merged_cfg"];
 
+                              // تدمير أوامر التجسس من السيرفر!
                               for (NSString *key in [mergedCfg allKeys]) {
                                   if ([mergedCfg[key] isKindOfClass:[NSMutableDictionary class]]) {
                                       NSMutableDictionary *innerDict = mergedCfg[key];
-
-                                      // 💣 إعدام أوامر المراقبة والتجسس
                                       if (innerDict[@"GEnableUploadStatInfo"]) innerDict[@"GEnableUploadStatInfo"] = @"false";
                                       if (innerDict[@"XPCallReportCrashKitBattle"]) innerDict[@"XPCallReportCrashKitBattle"] = @"false";
-                                      if (innerDict[@"XPCallReportCrashKitBattleTrace"]) innerDict[@"XPCallReportCrashKitBattleTrace"] = @"false";
                                       if (innerDict[@"USFSKickoutPkgName"]) innerDict[@"USFSKickoutPkgName"] = @"";
-                                      if (innerDict[@"USFSKickoutPkgName_1"]) innerDict[@"USFSKickoutPkgName_1"] = @"";
-                                      if (innerDict[@"EnableClientInGameReplay"]) innerDict[@"EnableClientInGameReplay"] = @"0";
                                   }
                               }
 
-                              // 💣 تدمير نظام فحص الهاردوير (GEM)
+                              // تدمير فحص الهاردوير
                               if (mDict[@"GEM"] && [mDict[@"GEM"] isKindOfClass:[NSMutableDictionary class]]) {
                                   NSMutableDictionary *gemDict = mDict[@"GEM"];
-                                  gemDict[@"cpu"] = @"0";
-                                  gemDict[@"battery"] = @"0";
-                                  gemDict[@"netflow"] = @"0";
-                                  gemDict[@"ping"] = @"0";
+                                  gemDict[@"cpu"] = @"0"; gemDict[@"battery"] = @"0";
                               }
 
-                              SendToRadar(@"GETCONFIG_HIJACKED", @"Tencent Orders Destroyed! ✅");
-                              return mDict; // إرجاع الملف النظيف للعبة
+                              NSLog(@"[MASOUD LAB] 🎯 JSON Commands Hijacked!");
+                              return mDict; 
                           }
                       }
                   }
-              } @catch (NSException *e) {
-                  // إذا حدث أي خطأ غير متوقع، لا نكرش اللعبة! نرجع الملف الأصلي
-                  NSLog(@"[MASOUD LAB] Hijack failed safely: %@", e.reason);
-              }
-              
+              } @catch (NSException *e) {}
               return result;
           }
 
           // ==========================================
-          // 🚀 التشغيل الآمن (التأخير التكتيكي)
+          // 🌐 2. الردود الوهمية (ابتلاع تقارير الباند وإرجاع "نجاح")
+          // ==========================================
+          static NSURLSessionDataTask* (*orig_dataTaskWithRequest)(id, SEL, NSURLRequest*, id);
+
+          NSURLSessionDataTask* hk_dataTaskWithRequest(id self, SEL _cmd, NSURLRequest* request, void (^completionHandler)(NSData*, NSURLResponse*, NSError*)) {
+              
+              if (request && request.URL) {
+                  NSString *urlStr = request.URL.absoluteString.lowercaseString;
+                  
+                  // 🔥 السحر هنا: إذا اللعبة تحاول إرسال تقرير باند (Telemetry/CrashSight)
+                  if ([urlStr containsString:@"tdatamaster"] || [urlStr containsString:@"crashsight"] || [urlStr containsString:@"anogs"]) {
+                      
+                      NSLog(@"[MASOUD LAB] 🛡️ Swallowing Cheat Report to: %@", urlStr);
+                      
+                      // 1. لا نقوم بإنشاء اتصال حقيقي نهائياً (نقطع الواير)
+                      // 2. نقوم بإنشاء "رد وهمي" (Fake Response) نخبر فيه اللعبة أن الاتصال نجح 100%!
+                      if (completionHandler) {
+                          NSHTTPURLResponse *fakeResponse = [[NSHTTPURLResponse alloc] initWithURL:request.URL 
+                                                                                        statusCode:200 // 200 تعني OK (نجاح)
+                                                                                       HTTPVersion:@"HTTP/1.1" 
+                                                                                      headerFields:nil];
+                          // استدعاء دالة الإكمال الوهمية وإعطائها بيانات فارغة بنجاح
+                          dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                              completionHandler([NSData data], fakeResponse, nil);
+                          });
+                      }
+                      // نرجع Task وهمي لمنع الكراش
+                      return nil; 
+                  }
+              }
+              // السماح للروابط السليمة بالمرور (مثل تسجيل الدخول واللعب)
+              return orig_dataTaskWithRequest(self, _cmd, request, completionHandler);
+          }
+
+          // ==========================================
+          // 🚀 التشغيل الصامت والآمن
           // ==========================================
           __attribute__((constructor))
-          static void start_json_hijacker() {
-              // تأخير 3 ثواني لتفادي التداخل مع عمليات الإقلاع وتسجيل الدخول الأولية
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+          static void start_mind_control() {
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                   
-                  Method m = class_getClassMethod([NSJSONSerialization class], @selector(JSONObjectWithData:options:error:));
-                  orig_JSONObjectWithData = (id (*)(Class, SEL, NSData *, NSJSONReadingOptions, NSError **))method_getImplementation(m);
-                  method_setImplementation(m, (IMP)hk_JSONObjectWithData);
+                  // 1. تفعيل غسيل الدماغ للـ JSON
+                  Method m_json = class_getClassMethod([NSJSONSerialization class], @selector(JSONObjectWithData:options:error:));
+                  orig_JSONObjectWithData = (id (*)(Class, SEL, NSData *, NSJSONReadingOptions, NSError **))method_getImplementation(m_json);
+                  method_setImplementation(m_json, (IMP)hk_JSONObjectWithData);
+
+                  // 2. تفعيل الردود الوهمية لابتلاع تقارير الباند
+                  SafeSwizzle([NSURLSession class], @selector(dataTaskWithRequest:completionHandler:), (IMP)hk_dataTaskWithRequest, (IMP*)&orig_dataTaskWithRequest);
                   
-                  SendToRadar(@"SYSTEM_INIT", @"Bulletproof Hijacker & Radar ACTIVE 🦅");
-                  NSLog(@"[MASOUD LAB] 🦅 CONFIG HIJACKER ACTIVE!");
-                  
+                  NSLog(@"[MASOUD LAB] 🦅 MIND CONTROL ENGINE DEPLOYED. TENCENT IS NOW YOUR PUPPET.");
               });
           }
           EOF
 
-      - name: Compile JSON Hijacker Dylib
+      - name: Compile Mind Control Engine
         run: |
           clang++ -dynamiclib -std=c++11 -arch arm64 \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-          jni/main.mm -o Masoud-Hijacker-Radar.dylib \
+          jni/main.mm -o Masoud-Mind-Control.dylib \
           -framework Foundation -lobjc
-          
-          strip -x Masoud-Hijacker-Radar.dylib
+          strip -x Masoud-Mind-Control.dylib
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Masoud-Hijacker-Radar
-          path: Masoud-Hijacker-Radar.dylib
+          name: Masoud-Mind-Control
+          path: Masoud-Mind-Control.dylib
