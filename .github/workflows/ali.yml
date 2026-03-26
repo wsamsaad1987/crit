@@ -1,45 +1,185 @@
-name: Shammari VIP IPA Build
+name: Shammari Offset Shredder Build
 on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - run: |
-          mkdir jni
+      
+      - name: Download Fishhook
+        run: |
+          mkdir -p jni
+          curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.c -o jni/fishhook.c
+          curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.h -o jni/fishhook.h
+          
+      - name: Generate Main Source
+        run: |
           cat <<'EOF' > jni/main.mm
           #import <Foundation/Foundation.h>
           #import <UIKit/UIKit.h>
           #import <mach-o/dyld.h>
-          #import <sys/mman.h>
-          #import <objc/runtime.h>
+          #import <dlfcn.h>
+          #import <sys/sysctl.h>
           #include <vector>
+          #include "fishhook.h" // 👈 نستخدم Fishhook لمنع الكراش نهائياً
 
-          volatile const char* MASOUD_MARK = "SHAMMARI_MASTER_PROTECTION_2026";
-          uint8_t XOR_KEY = 0x6A;
-          uint32_t KILL_HEX[] = {0xD2800000, 0xD65F03C0}; 
+          uint8_t XOR_SECRET = 0xE6;
 
           NSString* GetDecryptedURL() {
-              uint8_t enc[] = { 0x02, 0x1E, 0x1E, 0x1A, 0x50, 0x45, 0x45, 0x1A, 0x1F, 0x08, 0x0D, 0x44, 0x07, 0x13, 0x1C, 0x04, 0x09, 0x44, 0x09, 0x05, 0x07, 0x45, 0x1A, 0x1F, 0x08, 0x0D, 0x44, 0x1A, 0x02, 0x1A, 0x55, 0x0B, 0x1A, 0x03, 0x57, 0x5B };
+              uint8_t enc[] = { 0x8E, 0x92, 0x92, 0x96, 0xDC, 0xC9, 0xC9, 0x96, 0x93, 0x84, 0x81, 0xC8, 0x8B, 0x9F, 0x90, 0x88, 0x85, 0xC8, 0x85, 0x89, 0x8B, 0xC9, 0x96, 0x93, 0x84, 0x81, 0xC8, 0x96, 0x8E, 0x96, 0xD9, 0x87, 0x96, 0x8F, 0xDB, 0xD7 };
               NSMutableString *s = [NSMutableString string];
-              for(int i=0; i<sizeof(enc); i++) [s appendFormat:@"%c", enc[i] ^ XOR_KEY];
+              for(int i=0; i<sizeof(enc); i++) [s appendFormat:@"%c", enc[i] ^ XOR_SECRET];
               return s;
           }
 
-          uint8_t VerifyMasoudCore() {
-              uint32_t c = 0; for(int i=0; MASOUD_MARK[i]!='\0'; i++) c += MASOUD_MARK[i];
-              return ((c % 256) == 12) ? XOR_KEY : 0x00;
+          // ==========================================
+          // 🧠 محرك تجميع الأوفستات المفلشة (Shredded Offsets Engine)
+          // ==========================================
+          std::vector<uintptr_t> GetShreddedOffsets() {
+              std::vector<uintptr_t> offsets;
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0x4 ^ 0x5)) << 20);
+                  current_off |= (((uintptr_t)(0x3 ^ 0xB)) << 16);
+                  current_off |= (((uintptr_t)(0x3 ^ 0x6)) << 12);
+                  current_off |= (((uintptr_t)(0xE ^ 0x4)) << 8);
+                  current_off |= (((uintptr_t)(0x8 ^ 0x1)) << 4);
+                  current_off |= (((uintptr_t)(0x1 ^ 0xD)) << 0);
+                  offsets.push_back(current_off);
+              }
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0xD ^ 0xC)) << 20);
+                  current_off |= (((uintptr_t)(0x6 ^ 0xE)) << 16);
+                  current_off |= (((uintptr_t)(0x6 ^ 0x3)) << 12);
+                  current_off |= (((uintptr_t)(0x6 ^ 0x4)) << 8);
+                  current_off |= (((uintptr_t)(0x0 ^ 0x2)) << 4);
+                  current_off |= (((uintptr_t)(0xD ^ 0x5)) << 0);
+                  offsets.push_back(current_off);
+              }
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0x4 ^ 0x9)) << 16);
+                  current_off |= (((uintptr_t)(0x3 ^ 0xE)) << 12);
+                  current_off |= (((uintptr_t)(0xA ^ 0x8)) << 8);
+                  current_off |= (((uintptr_t)(0xB ^ 0xE)) << 4);
+                  current_off |= (((uintptr_t)(0xE ^ 0xE)) << 0);
+                  offsets.push_back(current_off);
+              }
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0xA ^ 0x7)) << 16);
+                  current_off |= (((uintptr_t)(0x8 ^ 0xF)) << 12);
+                  current_off |= (((uintptr_t)(0x9 ^ 0x2)) << 8);
+                  current_off |= (((uintptr_t)(0x6 ^ 0xC)) << 4);
+                  current_off |= (((uintptr_t)(0x3 ^ 0x3)) << 0);
+                  offsets.push_back(current_off);
+              }
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0xA ^ 0x3)) << 16);
+                  current_off |= (((uintptr_t)(0xB ^ 0x2)) << 12);
+                  current_off |= (((uintptr_t)(0x4 ^ 0xE)) << 8);
+                  current_off |= (((uintptr_t)(0xB ^ 0x6)) << 4);
+                  current_off |= (((uintptr_t)(0x2 ^ 0x2)) << 0);
+                  offsets.push_back(current_off);
+              }
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0x6 ^ 0xE)) << 16);
+                  current_off |= (((uintptr_t)(0x8 ^ 0xA)) << 12);
+                  current_off |= (((uintptr_t)(0xB ^ 0x4)) << 8);
+                  current_off |= (((uintptr_t)(0x9 ^ 0x2)) << 4);
+                  current_off |= (((uintptr_t)(0x9 ^ 0x5)) << 0);
+                  offsets.push_back(current_off);
+              }
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0x1 ^ 0x6)) << 16);
+                  current_off |= (((uintptr_t)(0x1 ^ 0xF)) << 12);
+                  current_off |= (((uintptr_t)(0xE ^ 0x3)) << 8);
+                  current_off |= (((uintptr_t)(0xE ^ 0xA)) << 4);
+                  current_off |= (((uintptr_t)(0xA ^ 0x6)) << 0);
+                  offsets.push_back(current_off);
+              }
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0xA ^ 0xD)) << 16);
+                  current_off |= (((uintptr_t)(0x3 ^ 0x8)) << 12);
+                  current_off |= (((uintptr_t)(0xE ^ 0xC)) << 8);
+                  current_off |= (((uintptr_t)(0x9 ^ 0x3)) << 4);
+                  current_off |= (((uintptr_t)(0x0 ^ 0x8)) << 0);
+                  offsets.push_back(current_off);
+              }
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0xB ^ 0xD)) << 16);
+                  current_off |= (((uintptr_t)(0xF ^ 0x7)) << 12);
+                  current_off |= (((uintptr_t)(0x8 ^ 0x5)) << 8);
+                  current_off |= (((uintptr_t)(0x2 ^ 0x1)) << 4);
+                  current_off |= (((uintptr_t)(0xC ^ 0x8)) << 0);
+                  offsets.push_back(current_off);
+              }
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0x8 ^ 0xC)) << 16);
+                  current_off |= (((uintptr_t)(0xA ^ 0xE)) << 12);
+                  current_off |= (((uintptr_t)(0x7 ^ 0x8)) << 8);
+                  current_off |= (((uintptr_t)(0x2 ^ 0x4)) << 4);
+                  current_off |= (((uintptr_t)(0x6 ^ 0xA)) << 0);
+                  offsets.push_back(current_off);
+              }
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0x1 ^ 0x2)) << 16);
+                  current_off |= (((uintptr_t)(0xE ^ 0x5)) << 12);
+                  current_off |= (((uintptr_t)(0xE ^ 0xD)) << 8);
+                  current_off |= (((uintptr_t)(0x0 ^ 0x7)) << 4);
+                  current_off |= (((uintptr_t)(0xF ^ 0xF)) << 0);
+                  offsets.push_back(current_off);
+              }
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0x9 ^ 0xA)) << 16);
+                  current_off |= (((uintptr_t)(0x2 ^ 0x5)) << 12);
+                  current_off |= (((uintptr_t)(0x2 ^ 0x4)) << 8);
+                  current_off |= (((uintptr_t)(0x4 ^ 0xE)) << 4);
+                  current_off |= (((uintptr_t)(0xE ^ 0xE)) << 0);
+                  offsets.push_back(current_off);
+              }
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0x2 ^ 0xE)) << 12);
+                  current_off |= (((uintptr_t)(0x4 ^ 0x9)) << 8);
+                  current_off |= (((uintptr_t)(0xD ^ 0xC)) << 4);
+                  current_off |= (((uintptr_t)(0x0 ^ 0xC)) << 0);
+                  offsets.push_back(current_off);
+              }
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0xC ^ 0xA)) << 12);
+                  current_off |= (((uintptr_t)(0xF ^ 0xB)) << 8);
+                  current_off |= (((uintptr_t)(0x6 ^ 0xF)) << 4);
+                  current_off |= (((uintptr_t)(0xB ^ 0x3)) << 0);
+                  offsets.push_back(current_off);
+              }
+              return offsets;
           }
 
+
+          // ==========================================
+          // 🎨 واجهة محمد الشمري المظبوطة (بدون فراغ)
+          // ==========================================
           @interface FalconEyeUI : NSObject
           + (instancetype)shared;
           @property (nonatomic, strong) UIView *blackOverlay;
           @property (nonatomic, strong) UIView *loginBox;
+          @property (nonatomic, strong) UIView *purpleBanner;
           @property (nonatomic, strong) UIView *statusContainer;
           @property (nonatomic, strong) UIView *lampConn;
           @property (nonatomic, strong) UIView *lampSec;
           @property (nonatomic, strong) UILabel *lblSec;
-          @property (nonatomic, strong) UIView *maintenanceView; // شاشة التجميد
+          @property (nonatomic, strong) UIView *maintenanceView;
           @end
 
           @implementation FalconEyeUI
@@ -60,7 +200,7 @@ jobs:
               self.loginBox.backgroundColor = [UIColor colorWithRed:0.05 green:0.05 blue:0.1 alpha:1.0];
               self.loginBox.layer.cornerRadius = 20;
               self.loginBox.layer.borderColor = [UIColor cyanColor].CGColor;
-              self.loginBox.layer.borderWidth = 1;
+              self.loginBox.layer.borderWidth = 1.5;
               [self.blackOverlay addSubview:self.loginBox];
 
               UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(0, 20, 280, 30)];
@@ -70,12 +210,21 @@ jobs:
               title.font = [UIFont boldSystemFontOfSize:18];
               [self.loginBox addSubview:title];
 
+              UITextField *input = [[UITextField alloc] initWithFrame:CGRectMake(20, 70, 240, 45)];
+              input.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.1];
+              input.textColor = [UIColor whiteColor];
+              input.placeholder = @"أدخل كود التفعيل...";
+              input.textAlignment = NSTextAlignmentCenter;
+              input.layer.cornerRadius = 10;
+              [self.loginBox addSubview:input];
+
               UIButton *btn = [UIButton buttonWithType:UIButtonTypeSystem];
-              btn.frame = CGRectMake(40, 120, 200, 45);
+              btn.frame = CGRectMake(20, 135, 240, 45);
               btn.backgroundColor = [UIColor systemBlueColor];
               [btn setTitle:@"تفعيل الحماية" forState:UIControlStateNormal];
               [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
               btn.layer.cornerRadius = 10;
+              btn.titleLabel.font = [UIFont boldSystemFontOfSize:16];
               [btn addTarget:self action:@selector(handleLogin) forControlEvents:UIControlEventTouchUpInside];
               [self.loginBox addSubview:btn];
           }
@@ -85,62 +234,55 @@ jobs:
               l.backgroundColor = [UIColor blackColor];
               l.layer.cornerRadius = 20;
               UIActivityIndicatorView *act = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhiteLarge];
-              act.center = CGPointMake(140, 100);
+              act.center = CGPointMake(140, 80);
               [act startAnimating];
               [l addSubview:act];
+    
+              UILabel *lbl = [[UILabel alloc] initWithFrame:CGRectMake(0, 110, 280, 30)];
+              lbl.text = @"جاري تجميد الجواسيس...";
+              lbl.textColor = [UIColor cyanColor];
+              lbl.textAlignment = NSTextAlignmentCenter;
+              lbl.font = [UIFont boldSystemFontOfSize:14];
+              [l addSubview:lbl];
               [self.loginBox addSubview:l];
 
               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                  [UIView animateWithDuration:0.5 animations:^{ self.blackOverlay.alpha = 0; } completion:^(BOOL f){
+                  [UIView animateWithDuration:0.4 animations:^{ 
+                      self.blackOverlay.alpha = 0; 
+                  } completion:^(BOOL f){
                       [self.blackOverlay removeFromSuperview];
-                      [self showBanner];
+                      [self showBannerAndLamps];
                   }];
               });
           }
 
-          - (void)showBanner {
+          - (void)showBannerAndLamps {
               UIWindow *w = [UIApplication sharedApplication].keyWindow;
-              UIView *b = [[UIView alloc] initWithFrame:CGRectMake(0, -60, w.bounds.size.width, 60)];
-              b.backgroundColor = [UIColor colorWithRed:0.2 green:0.1 blue:0.5 alpha:0.9];
-              UILabel *t = [[UILabel alloc] initWithFrame:b.bounds];
-              t.text = @"🦅 تم تفعيل حماية الشمري بنجاح ✅";
-              t.textColor = [UIColor whiteColor]; t.textAlignment = NSTextAlignmentCenter;
-              t.font = [UIFont boldSystemFontOfSize:14];
-              [b addSubview:t]; [w addSubview:b];
+    
+              CGFloat bannerHeight = 55;
+              self.purpleBanner = [[UIView alloc] initWithFrame:CGRectMake(0, -bannerHeight, w.bounds.size.width, bannerHeight)];
+              self.purpleBanner.backgroundColor = [UIColor colorWithRed:0.35 green:0.18 blue:0.65 alpha:1.0]; 
+    
+              UILabel *t = [[UILabel alloc] initWithFrame:CGRectMake(0, 15, w.bounds.size.width, 40)];
+              t.text = @"✅ تم تفعيل حماية الشمري بنجاح";
+              t.textColor = [UIColor whiteColor]; 
+              t.textAlignment = NSTextAlignmentCenter;
+              t.font = [UIFont systemFontOfSize:15 weight:UIFontWeightBold];
+              [self.purpleBanner addSubview:t]; 
+              [w addSubview:self.purpleBanner];
 
-              [UIView animateWithDuration:0.5 animations:^{ b.frame = CGRectMake(0, 40, w.bounds.size.width, 60); } completion:^(BOOL f){
+              [UIView animateWithDuration:0.5 animations:^{ 
+                  self.purpleBanner.frame = CGRectMake(0, 0, w.bounds.size.width, bannerHeight); 
+              } completion:^(BOOL f){
                   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                      [UIView animateWithDuration:0.5 animations:^{ b.frame = CGRectMake(0, -60, w.bounds.size.width, 60); } completion:^(BOOL f){
-                          [b removeFromSuperview];
+                      [UIView animateWithDuration:0.5 animations:^{ 
+                          self.purpleBanner.frame = CGRectMake(0, -bannerHeight, w.bounds.size.width, bannerHeight); 
+                      } completion:^(BOOL f){
+                          [self.purpleBanner removeFromSuperview];
                           [self drawLamps:w];
                       }];
                   });
               }];
-          }
-
-          - (void)showAnogsKilledBanner {
-              dispatch_async(dispatch_get_main_queue(), ^{
-                  UIWindow *w = [UIApplication sharedApplication].keyWindow;
-                  UIView *b = [[UIView alloc] initWithFrame:CGRectMake(0, -60, w.bounds.size.width, 60)];
-                  b.backgroundColor = [UIColor colorWithRed:0.7 green:0.0 blue:0.1 alpha:0.95]; 
-                  b.layer.borderWidth = 1;
-                  b.layer.borderColor = [UIColor redColor].CGColor;
-        
-                  UILabel *t = [[UILabel alloc] initWithFrame:b.bounds];
-                  t.text = @"☠️ تم إعدام وتجميد جاسوس anogs بنجاح!";
-                  t.textColor = [UIColor whiteColor]; 
-                  t.textAlignment = NSTextAlignmentCenter;
-                  t.font = [UIFont boldSystemFontOfSize:14];
-                  [b addSubview:t]; [w addSubview:b];
-
-                  [UIView animateWithDuration:0.5 animations:^{ b.frame = CGRectMake(0, 40, w.bounds.size.width, 60); } completion:^(BOOL f){
-                      dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 4 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                          [UIView animateWithDuration:0.5 animations:^{ b.frame = CGRectMake(0, -60, w.bounds.size.width, 60); } completion:^(BOOL f){
-                              [b removeFromSuperview];
-                          }];
-                      });
-                  }];
-              });
           }
 
           - (void)drawLamps:(UIWindow*)w {
@@ -167,7 +309,6 @@ jobs:
 
           - (void)startSync {
               [NSTimer scheduledTimerWithTimeInterval:4.0 repeats:YES block:^(NSTimer *t) {
-                  // جلب معلومات الجهاز للوحة
                   NSString *udid = [[[UIDevice currentDevice] identifierForVendor] UUIDString];
                   NSString *dev = [[UIDevice currentDevice] model];
                   NSString *encodedDev = [dev stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
@@ -181,17 +322,12 @@ jobs:
                           self.lampConn.backgroundColor = [UIColor greenColor];
                           NSDictionary *j = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
                           if(j) {
-                              // 1. نظام الحظر (Ban) والكراش الإجباري
                               if([j[@"banned"] boolValue] == YES || [j[@"status"] isEqualToString:@"crash"]) exit(0);
-                    
-                              // 2. نظام اللمبات
                               if([j[@"security"] isEqualToString:@"safe"]) {
                                   self.lampSec.backgroundColor = [UIColor greenColor]; self.lblSec.text = @"Safe 🟢";
                               } else {
                                   self.lampSec.backgroundColor = [UIColor redColor]; self.lblSec.text = @"Danger 🔴";
                               }
-                    
-                              // 3. نظام التجميد وإلغاء التجميد الديناميكي
                               if([j[@"status"] isEqualToString:@"maintenance"]) {
                                   if (!self.maintenanceView) {
                                       self.maintenanceView = [[UIView alloc] initWithFrame:[UIScreen mainScreen].bounds];
@@ -205,7 +341,6 @@ jobs:
                                       [[UIApplication sharedApplication].keyWindow addSubview:self.maintenanceView];
                                   }
                               } else {
-                                  // إذا الإدارة ألغت التجميد، نرفع الشاشة السوداء!
                                   if (self.maintenanceView) {
                                       [self.maintenanceView removeFromSuperview];
                                       self.maintenanceView = nil;
@@ -218,63 +353,84 @@ jobs:
           }
           @end
 
-          void ApplyPatch(uintptr_t addr) {
-              if(!addr) return;
-              size_t ps = getpagesize(); uintptr_t start = addr & ~(ps-1);
-              mprotect((void*)start, ps, PROT_READ|PROT_WRITE|PROT_EXEC);
-              memcpy((void*)addr, KILL_HEX, 8); 
-              mprotect((void*)start, ps, PROT_READ|PROT_EXEC);
+          // ==========================================
+          // ⚔️ جدار الحماية (Fishhook Spoofer with Shredded Offsets)
+          // ==========================================
+
+          static void* (*orig_dlsym)(void* handle, const char* symbol);
+          static int (*orig_access)(const char *path, int amode);
+
+          // 🔍 دالة فحص العنوان (تم تكرار الأقواس للـ C++)
+          BOOL isTargetOffset() {
+              void* ret_addr = __builtin_return_address(0);
+              Dl_info info;
+    
+              if (dladdr(ret_addr, &info) && info.dli_fname) {
+                  NSString *caller = [[NSString stringWithUTF8String:info.dli_fname] lowercaseString];
+        
+                  if ([caller containsString:@"anogs"]) {
+                      uintptr_t slide = 0;
+                      for (uint32_t i = 0; i < _dyld_image_count(); i++) {
+                          if (strcmp(_dyld_get_image_name(i), info.dli_fname) == 0) {
+                              slide = _dyld_get_image_vmaddr_slide(i);
+                              break;
+                          }
+                      }
+            
+                      uintptr_t real_offset = (uintptr_t)ret_addr - slide;
+                      std::vector<uintptr_t> active_offsets = GetShreddedOffsets();
+            
+                      for (uintptr_t target_off : active_offsets) {
+                          if (real_offset >= (target_off - 0x50) && real_offset <= (target_off + 0x50)) {
+                              NSLog(@"[MASOUD SHIELD] 🎯 Blocked Call from Shredded Offset: 0x%lx", real_offset);
+                              return YES;
+                          }
+                      }
+                  }
+              }
+              return NO;
           }
 
-          uintptr_t ScanMemory(uint8_t* b, size_t s, std::vector<int> p) {
-              for(size_t i=0; i<s-p.size(); i++) {
-                  bool f=true;
-                  for(size_t j=0; j<p.size(); j++) if(b[i+j]!=p[j] && p[j]!=-1) {f=false; break;}
-                  if(f) return (uintptr_t)(b+i);
+          void* hk_dlsym(void* handle, const char* symbol) {
+              if (isTargetOffset()) {
+                  return NULL;
               }
-              return 0;
+              return orig_dlsym(handle, symbol);
+          }
+
+          int hk_access(const char *path, int amode) {
+              if (isTargetOffset()) {
+                  return -1; 
+              }
+              return orig_access(path, amode);
           }
 
           __attribute__((constructor))
-          static void shammari_init() {
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 5*NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                  uint8_t k = VerifyMasoudCore();
-                  if(k == 0) return;
-        
+          static void shammari_init_safe() {
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                   [[FalconEyeUI shared] drawLogin];
         
-                  for (uint32_t i=0; i<_dyld_image_count(); i++) {
-                      const char *image_name = _dyld_get_image_name(i);
-                      if (image_name && strstr(image_name, "anogs")) {
-                          uint8_t* base = (uint8_t*)_dyld_get_image_header(i);
-                          size_t anogs_size = 0xF00000; 
-
-                          { std::vector<int> p; p.push_back(0x96 ^ k); p.push_back(0x05 ^ k); p.push_back(0xD4 ^ k); p.push_back(0xC3 ^ k); p.push_back(0x97 ^ k); p.push_back(0x11 ^ k); p.push_back(0x6B ^ k); p.push_back(0xC3 ^ k); p.push_back(0x97 ^ k); p.push_back(0x29 ^ k); p.push_back(0x6A ^ k); p.push_back(0xFB ^ k); p.push_back(0x95 ^ k); p.push_back(0x29 ^ k); p.push_back(0x59 ^ k); p.push_back(0xBB ^ k); p.push_back(-1); p.push_back(-1); ApplyPatch(ScanMemory(base, anogs_size, p)); NSLog(@"[SHAMMARI VIP] ☠️ Eliminated: Memory_Scanner_Core"); }
-                          { std::vector<int> p; p.push_back(0x96 ^ k); p.push_back(0x05 ^ k); p.push_back(0xD4 ^ k); p.push_back(0xC3 ^ k); p.push_back(0x97 ^ k); p.push_back(0x11 ^ k); p.push_back(0x6B ^ k); p.push_back(0xC3 ^ k); p.push_back(0x97 ^ k); p.push_back(0x29 ^ k); p.push_back(0x6A ^ k); p.push_back(0xFB ^ k); p.push_back(0x95 ^ k); p.push_back(0x6D ^ k); p.push_back(0x2A ^ k); p.push_back(0xBB ^ k); p.push_back(0x95 ^ k); p.push_back(0x69 ^ k); p.push_back(0x69 ^ k); p.push_back(0xBB ^ k); ApplyPatch(ScanMemory(base, anogs_size, p)); NSLog(@"[SHAMMARI VIP] ☠️ Eliminated: Jailbreak_Detector"); }
-                          { std::vector<int> p; p.push_back(0x96 ^ k); p.push_back(0x05 ^ k); p.push_back(0xD0 ^ k); p.push_back(0xC3 ^ k); p.push_back(0x90 ^ k); p.push_back(0x0D ^ k); p.push_back(0x6B ^ k); p.push_back(0xC3 ^ k); p.push_back(0x92 ^ k); p.push_back(0x35 ^ k); p.push_back(0x68 ^ k); p.push_back(0xC3 ^ k); p.push_back(0x9C ^ k); p.push_back(0x3D ^ k); p.push_back(0x69 ^ k); p.push_back(0xC3 ^ k); p.push_back(0x9E ^ k); p.push_back(0x25 ^ k); p.push_back(0x6E ^ k); p.push_back(0xC3 ^ k); ApplyPatch(ScanMemory(base, anogs_size, p)); NSLog(@"[SHAMMARI VIP] ☠️ Eliminated: Environment_Check_A"); }
-                          { std::vector<int> p; p.push_back(0x96 ^ k); p.push_back(0x05 ^ k); p.push_back(0xD0 ^ k); p.push_back(0xC3 ^ k); p.push_back(0x90 ^ k); p.push_back(0x0D ^ k); p.push_back(0x6B ^ k); p.push_back(0xC3 ^ k); p.push_back(0x92 ^ k); p.push_back(0x35 ^ k); p.push_back(0x68 ^ k); p.push_back(0xC3 ^ k); p.push_back(0x9C ^ k); p.push_back(0x3D ^ k); p.push_back(0x69 ^ k); p.push_back(0xC3 ^ k); p.push_back(0x9E ^ k); p.push_back(0x25 ^ k); p.push_back(0x6E ^ k); p.push_back(0xC3 ^ k); ApplyPatch(ScanMemory(base, anogs_size, p)); NSLog(@"[SHAMMARI VIP] ☠️ Eliminated: Environment_Check_B"); }
-                          { std::vector<int> p; p.push_back(0x95 ^ k); p.push_back(0x69 ^ k); p.push_back(0x6B ^ k); p.push_back(0xBB ^ k); p.push_back(0x9E ^ k); p.push_back(0x25 ^ k); p.push_back(0x68 ^ k); p.push_back(0xC3 ^ k); p.push_back(0x97 ^ k); p.push_back(0x11 ^ k); p.push_back(0x69 ^ k); p.push_back(0xC3 ^ k); p.push_back(0x97 ^ k); p.push_back(0xA9 ^ k); p.push_back(0x6A ^ k); p.push_back(0xFB ^ k); p.push_back(-1); p.push_back(-1); ApplyPatch(ScanMemory(base, anogs_size, p)); NSLog(@"[SHAMMARI VIP] ☠️ Eliminated: Report_System_Bypass"); }
-                          { std::vector<int> p; p.push_back(0x95 ^ k); p.push_back(0xA9 ^ k); p.push_back(0x6A ^ k); p.push_back(0xBB ^ k); p.push_back(0x9E ^ k); p.push_back(0x25 ^ k); p.push_back(0x6B ^ k); p.push_back(0xC3 ^ k); p.push_back(0x97 ^ k); p.push_back(0x11 ^ k); p.push_back(0x68 ^ k); p.push_back(0xC3 ^ k); p.push_back(0x97 ^ k); p.push_back(0xE9 ^ k); p.push_back(0x6A ^ k); p.push_back(0xFB ^ k); p.push_back(-1); p.push_back(-1); ApplyPatch(ScanMemory(base, anogs_size, p)); NSLog(@"[SHAMMARI VIP] ☠️ Eliminated: Telemetry_Blocker"); }
-                          { std::vector<int> p; p.push_back(0x9C ^ k); p.push_back(0x3D ^ k); p.push_back(0xD7 ^ k); p.push_back(0xC3 ^ k); p.push_back(0x9E ^ k); p.push_back(0x25 ^ k); p.push_back(0x6B ^ k); p.push_back(0xC3 ^ k); p.push_back(0x97 ^ k); p.push_back(0x11 ^ k); p.push_back(0x68 ^ k); p.push_back(0xC3 ^ k); p.push_back(0x97 ^ k); p.push_back(0xE9 ^ k); p.push_back(0x6A ^ k); p.push_back(0xFB ^ k); p.push_back(-1); p.push_back(-1); ApplyPatch(ScanMemory(base, anogs_size, p)); NSLog(@"[SHAMMARI VIP] ☠️ Eliminated: Screenshot_AntiCheat"); }
-                          { std::vector<int> p; p.push_back(0x95 ^ k); p.push_back(0xE9 ^ k); p.push_back(0x68 ^ k); p.push_back(0xBB ^ k); p.push_back(0x92 ^ k); p.push_back(0x35 ^ k); p.push_back(0x6C ^ k); p.push_back(0xC3 ^ k); p.push_back(0x9C ^ k); p.push_back(0x3D ^ k); p.push_back(0x6D ^ k); p.push_back(0xC3 ^ k); p.push_back(0x9E ^ k); p.push_back(0x25 ^ k); p.push_back(0x62 ^ k); p.push_back(0xC3 ^ k); p.push_back(0x97 ^ k); p.push_back(0x11 ^ k); p.push_back(0x63 ^ k); p.push_back(0xC3 ^ k); ApplyPatch(ScanMemory(base, anogs_size, p)); NSLog(@"[SHAMMARI VIP] ☠️ Eliminated: Data_Encryption_Hook"); }
-                          { std::vector<int> p; p.push_back(0x9E ^ k); p.push_back(0x25 ^ k); p.push_back(0xD4 ^ k); p.push_back(0xC3 ^ k); p.push_back(0x97 ^ k); p.push_back(0x11 ^ k); p.push_back(0x6B ^ k); p.push_back(0xC3 ^ k); p.push_back(0x97 ^ k); p.push_back(0x29 ^ k); p.push_back(0x6A ^ k); p.push_back(0xFB ^ k); p.push_back(0x99 ^ k); p.push_back(0x69 ^ k); p.push_back(0x6A ^ k); p.push_back(0xC0 ^ k); p.push_back(-1); p.push_back(-1); ApplyPatch(ScanMemory(base, anogs_size, p)); NSLog(@"[SHAMMARI VIP] ☠️ Eliminated: Radar_AntiCheat"); }
-                          { std::vector<int> p; p.push_back(0x96 ^ k); p.push_back(0x05 ^ k); p.push_back(0xD6 ^ k); p.push_back(0xC3 ^ k); p.push_back(0x9C ^ k); p.push_back(0x3D ^ k); p.push_back(0x6B ^ k); p.push_back(0xC3 ^ k); p.push_back(0x9E ^ k); p.push_back(0x25 ^ k); p.push_back(0x68 ^ k); p.push_back(0xC3 ^ k); p.push_back(0x97 ^ k); p.push_back(0x11 ^ k); p.push_back(0x69 ^ k); p.push_back(0xC3 ^ k); p.push_back(0x97 ^ k); p.push_back(0xA9 ^ k); p.push_back(0x6A ^ k); p.push_back(0xFB ^ k); ApplyPatch(ScanMemory(base, anogs_size, p)); NSLog(@"[SHAMMARI VIP] ☠️ Eliminated: Ban_Trigger_Module"); }
-                          { std::vector<int> p; p.push_back(0x9C ^ k); p.push_back(0x3D ^ k); p.push_back(0xD7 ^ k); p.push_back(0xC3 ^ k); p.push_back(0x9E ^ k); p.push_back(0x25 ^ k); p.push_back(0x6B ^ k); p.push_back(0xC3 ^ k); p.push_back(0x97 ^ k); p.push_back(0x11 ^ k); p.push_back(0x68 ^ k); p.push_back(0xC3 ^ k); p.push_back(0x97 ^ k); p.push_back(0xE9 ^ k); p.push_back(0x6A ^ k); p.push_back(0xFB ^ k); p.push_back(0x99 ^ k); p.push_back(0x69 ^ k); p.push_back(0x6A ^ k); p.push_back(0xC0 ^ k); ApplyPatch(ScanMemory(base, anogs_size, p)); NSLog(@"[SHAMMARI VIP] ☠️ Eliminated: Integrity_Check_Loop"); }
-                          { std::vector<int> p; p.push_back(0x95 ^ k); p.push_back(0xA9 ^ k); p.push_back(0x6A ^ k); p.push_back(0xBB ^ k); p.push_back(0x9E ^ k); p.push_back(0x25 ^ k); p.push_back(0x6B ^ k); p.push_back(0xC3 ^ k); p.push_back(0x97 ^ k); p.push_back(0x11 ^ k); p.push_back(0x68 ^ k); p.push_back(0xC3 ^ k); p.push_back(0x97 ^ k); p.push_back(0xE9 ^ k); p.push_back(0x6A ^ k); p.push_back(0xFB ^ k); p.push_back(0x9E ^ k); p.push_back(0x69 ^ k); p.push_back(0x6B ^ k); p.push_back(0xC0 ^ k); ApplyPatch(ScanMemory(base, anogs_size, p)); NSLog(@"[SHAMMARI VIP] ☠️ Eliminated: Server_Heartbeat_Spoof"); }
-                          { std::vector<int> p; p.push_back(0x95 ^ k); p.push_back(0x29 ^ k); p.push_back(0x6E ^ k); p.push_back(0xBB ^ k); p.push_back(0x96 ^ k); p.push_back(0x05 ^ k); p.push_back(0x61 ^ k); p.push_back(0xC3 ^ k); p.push_back(0x90 ^ k); p.push_back(0x0D ^ k); p.push_back(0x66 ^ k); p.push_back(0xC3 ^ k); p.push_back(0x92 ^ k); p.push_back(0x35 ^ k); p.push_back(0x67 ^ k); p.push_back(0xC3 ^ k); p.push_back(0x9C ^ k); p.push_back(0x3D ^ k); p.push_back(0x64 ^ k); p.push_back(0xC3 ^ k); ApplyPatch(ScanMemory(base, anogs_size, p)); NSLog(@"[SHAMMARI VIP] ☠️ Eliminated: Network_Traffic_Monitor"); }
-                          { std::vector<int> p; p.push_back(0x95 ^ k); p.push_back(0xA9 ^ k); p.push_back(0x6C ^ k); p.push_back(0xBB ^ k); p.push_back(0x96 ^ k); p.push_back(0x05 ^ k); p.push_back(0x7F ^ k); p.push_back(0xC3 ^ k); p.push_back(0x90 ^ k); p.push_back(0x0D ^ k); p.push_back(0x7C ^ k); p.push_back(0xC3 ^ k); p.push_back(0x92 ^ k); p.push_back(0x35 ^ k); p.push_back(0x7D ^ k); p.push_back(0xC3 ^ k); p.push_back(0x9C ^ k); p.push_back(0x3D ^ k); p.push_back(0x72 ^ k); p.push_back(0xC3 ^ k); ApplyPatch(ScanMemory(base, anogs_size, p)); NSLog(@"[SHAMMARI VIP] ☠️ Eliminated: Virtual_Machine_Check"); }
-                          { std::vector<int> p; p.push_back(0x0A ^ k); p.push_back(0x58 ^ k); p.push_back(0x6A ^ k); p.push_back(0x93 ^ k); p.push_back(-1); p.push_back(-1); p.push_back(-1); p.push_back(-1); p.push_back(0x1D ^ k); p.push_back(0x28 ^ k); p.push_back(0x6A ^ k); p.push_back(0xFB ^ k); p.push_back(0x8B ^ k); p.push_back(0xE9 ^ k); p.push_back(0x6A ^ k); p.push_back(0xFB ^ k); ApplyPatch(ScanMemory(base, anogs_size, p)); NSLog(@"[SHAMMARI VIP] ☠️ Eliminated: Master_AntiCheat_Engine"); }
-                          [[FalconEyeUI shared] performSelectorOnMainThread:@selector(showAnogsKilledBanner) withObject:nil waitUntilDone:NO];
-                          break; 
-                      }
-                  }
+                  struct rebinding hooks[] = {
+                      {"dlsym", (void *)hk_dlsym, (void **)&orig_dlsym},
+                      {"access", (void *)hk_access, (void **)&orig_access}
+                  };
+                  rebind_symbols(hooks, 2);
+        
+                  NSLog(@"[MASOUD LAB] 🛡️ SHREDDED OFFSETS LOADED & FISHHOOK ACTIVE.");
               });
           }
 
           EOF
-          clang++ -dynamiclib -std=c++11 -arch arm64 -isysroot $(xcrun --sdk iphoneos --show-sdk-path) jni/main.mm -o ShammariVIP.dylib -framework Foundation -framework UIKit -lobjc
+          
+      - name: Compile Safe Dylib
+        run: |
+          clang++ -dynamiclib -std=c++11 -arch arm64 \
+          -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
+          jni/main.mm jni/fishhook.c -o ShammariVIP.dylib \
+          -framework Foundation -framework UIKit -lobjc
           strip -x ShammariVIP.dylib
+          
       - uses: actions/upload-artifact@v4
         with:
-          name: Shammari-VIP-IPA
+          name: Shammari-Shredded-Offsets
           path: ShammariVIP.dylib
