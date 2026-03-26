@@ -43,6 +43,7 @@ jobs:
         run: |
           cat << 'EOF' > app_source/main.m
           #import <UIKit/UIKit.h>
+          #import <QuartzCore/QuartzCore.h>
           #import <objc/runtime.h>
 
           // ⚠️ رابط سيرفر الشمري
@@ -59,7 +60,7 @@ jobs:
               [super viewDidLoad];
               self.view.backgroundColor = [UIColor colorWithRed:0.02 green:0.02 blue:0.05 alpha:1.0];
               
-              // 🦅 أنيميشن الصقر الطيار (Placeholder Icon)
+              // 🦅 أنيميشن الصقر الطيار
               self.falconIcon = [[UIView alloc] initWithFrame:CGRectMake(self.view.bounds.size.width/2 - 40, 100, 80, 80)];
               self.falconIcon.backgroundColor = [UIColor cyanColor];
               self.falconIcon.layer.cornerRadius = 40;
@@ -68,7 +69,6 @@ jobs:
               self.falconIcon.layer.shadowOpacity = 1.0;
               [self.view addSubview:self.falconIcon];
               
-              // حركة الطيران
               CABasicAnimation *fly = [CABasicAnimation animationWithKeyPath:@"position.y"];
               fly.duration = 1.5;
               fly.toValue = @(120);
@@ -104,7 +104,6 @@ jobs:
           }
 
           - (void)handleLogin {
-              // ميزة فيكة: انتظار 3 ثواني تحميل
               UIView *loader = [[UIView alloc] initWithFrame:self.view.bounds];
               loader.backgroundColor = [UIColor blackColor];
               UILabel *t = [[UILabel alloc] initWithFrame:loader.bounds];
@@ -117,7 +116,6 @@ jobs:
 
               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                   [self dismissViewControllerAnimated:YES completion:nil];
-                  // هنا يتم الانتقال للواجهة الرئيسية (تلقائياً في AppDelegate)
               });
           }
           @end
@@ -135,14 +133,13 @@ jobs:
               [super viewDidLoad];
               self.view.backgroundColor = [UIColor blackColor];
               
-              // 1. شريط الحالة العلوي
               UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 100)];
               header.backgroundColor = [UIColor colorWithWhite:0.05 alpha:1.0];
               [self.view addSubview:header];
               
               self.statusDot = [[UIView alloc] initWithFrame:CGRectMake(20, 55, 12, 12)];
               self.statusDot.layer.cornerRadius = 6;
-              self.statusDot.backgroundColor = [UIColor greenColor]; // متصل
+              self.statusDot.backgroundColor = [UIColor greenColor];
               [header addSubview:self.statusDot];
 
               UILabel *t = [[UILabel alloc] initWithFrame:CGRectMake(40, 45, 200, 30)];
@@ -159,14 +156,12 @@ jobs:
               [menuBtn addTarget:self action:@selector(toggleSidebar) forControlEvents:UIControlEventTouchUpInside];
               [header addSubview:menuBtn];
 
-              // 2. جدول اللاعبين
               self.playersTable = [[UITableView alloc] initWithFrame:CGRectMake(0, 100, self.view.bounds.size.width, self.view.bounds.size.height - 100)];
               self.playersTable.backgroundColor = [UIColor clearColor];
               self.playersTable.delegate = self;
               self.playersTable.dataSource = self;
               [self.view addSubview:self.playersTable];
               
-              // بيانات وهمية للعرض
               self.playersList = @[
                   @{@"name": @"iPhone 15 Pro", @"udid": @"A1B2-C3D4-E5F6"},
                   @{@"name": @"iPad Pro M2", @"udid": @"X9Y8-Z7W6-V5U4"}
@@ -186,7 +181,6 @@ jobs:
               st.font = [UIFont boldSystemFontOfSize:20];
               [self.sidebar addSubview:st];
 
-              // أزرار التحكم
               [self addSidebarBtn:@"حالة أمان: أمان 🟢" color:[UIColor greenColor] y:120 action:@selector(sendSafe)];
               [self addSidebarBtn:@"حالة أمان: خطر 🔴" color:[UIColor redColor] y:180 action:@selector(sendDanger)];
               [self addSidebarBtn:@"🚧 تفعيل وضع الصيانة" color:[UIColor orangeColor] y:240 action:@selector(sendMaint)];
@@ -213,7 +207,6 @@ jobs:
               }];
           }
 
-          // ارسال الاوامر للسيرفر
           - (void)sendCommand:(NSString*)cmd {
               NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"%@?action=%@", API_URL, cmd]];
               [[[NSURLSession sharedSession] dataTaskWithURL:url] resume];
@@ -225,7 +218,6 @@ jobs:
           - (void)sendMaint { [self sendCommand:@"maintenance"]; }
           - (void)sendCrash { [self sendCommand:@"crash"]; }
 
-          // TableView Logic
           - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section { return self.playersList.count; }
           - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
               UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:@"cell"];
@@ -244,7 +236,6 @@ jobs:
           }
           @end
 
-          // --- محرك التطبيق ---
           @interface AppDelegate : UIResponder <UIApplicationDelegate>
           @property (strong, nonatomic) UIWindow *window;
           @end
@@ -254,7 +245,6 @@ jobs:
               self.window.rootViewController = [[ShammariDashboard alloc] init];
               [self.window makeKeyAndVisible];
               
-              // إظهار اللوكن فوق الواجهة
               LoginViewController *login = [[LoginViewController alloc] init];
               login.modalPresentationStyle = UIModalPresentationFullScreen;
               [self.window.rootViewController presentViewController:login animated:NO completion:nil];
@@ -269,9 +259,10 @@ jobs:
 
       - name: 🚀 Build App Binary
         run: |
+          # التعديل الذهبي: إضافة -framework QuartzCore لحل مشكلة الأنيميشن
           clang -fobjc-arc -arch arm64 \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-          -framework Foundation -framework UIKit \
+          -framework Foundation -framework UIKit -framework QuartzCore \
           app_source/main.m -o Payload/ShammariApp.app/ShammariApp
           
           cp app_source/Info.plist Payload/ShammariApp.app/Info.plist
