@@ -1,190 +1,49 @@
-name: Shammari Offset Shredder Build
+name: Black King Ultimate Factory
 on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Download Fishhook
-        run: |
+      - run: |
           mkdir -p jni
           curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.c -o jni/fishhook.c
           curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.h -o jni/fishhook.h
           
-      - name: Generate Main Source
-        run: |
           cat <<'EOF' > jni/main.mm
           #import <Foundation/Foundation.h>
           #import <UIKit/UIKit.h>
           #import <mach-o/dyld.h>
           #import <dlfcn.h>
           #import <sys/sysctl.h>
-          #include <vector>
-          #include "fishhook.h"
+          #include "fishhook.h" // 👈 المحرك الوحيد الآمن للأجهزة بدون جلبريك
 
-          uint8_t XOR_SECRET = 0x59;
+          uint8_t XOR_SECRET = 0xC8;
 
           NSString* GetDecryptedURL() {
-              uint8_t enc[] = { 0x31, 0x2D, 0x2D, 0x29, 0x63, 0x76, 0x76, 0x29, 0x2C, 0x3B, 0x3E, 0x77, 0x34, 0x20, 0x2F, 0x37, 0x3A, 0x77, 0x3A, 0x36, 0x34, 0x76, 0x29, 0x2C, 0x3B, 0x3E, 0x77, 0x29, 0x31, 0x29, 0x66, 0x38, 0x29, 0x30, 0x64, 0x68 };
+              uint8_t enc[] = { 0xA0, 0xBC, 0xBC, 0xB8, 0xF2, 0xE7, 0xE7, 0xB8, 0xBD, 0xAA, 0xAF, 0xE6, 0xA5, 0xB1, 0xBE, 0xA6, 0xAB, 0xE6, 0xAB, 0xA7, 0xA5, 0xE7, 0xB8, 0xBD, 0xAA, 0xAF, 0xE6, 0xB8, 0xA0, 0xB8, 0xF7, 0xA9, 0xB8, 0xA1, 0xF5, 0xF9 };
               NSMutableString *s = [NSMutableString string];
               for(int i=0; i<sizeof(enc); i++) [s appendFormat:@"%c", enc[i] ^ XOR_SECRET];
               return s;
           }
 
           // ==========================================
-          // 🧠 محرك تجميع الأوفستات المفلشة
+          // 🎨 واجهة BLACK KING (بدون حقل كود + لمبات EN)
           // ==========================================
-          std::vector<uintptr_t> GetShreddedOffsets() {
-              std::vector<uintptr_t> offsets;
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0xA ^ 0xB)) << 20);
-                  current_off |= (((uintptr_t)(0xC ^ 0x4)) << 16);
-                  current_off |= (((uintptr_t)(0x8 ^ 0xD)) << 12);
-                  current_off |= (((uintptr_t)(0x5 ^ 0xF)) << 8);
-                  current_off |= (((uintptr_t)(0x0 ^ 0x9)) << 4);
-                  current_off |= (((uintptr_t)(0xD ^ 0x1)) << 0);
-                  offsets.push_back(current_off);
-              }
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0xD ^ 0xC)) << 20);
-                  current_off |= (((uintptr_t)(0x0 ^ 0x8)) << 16);
-                  current_off |= (((uintptr_t)(0x1 ^ 0x4)) << 12);
-                  current_off |= (((uintptr_t)(0x6 ^ 0x4)) << 8);
-                  current_off |= (((uintptr_t)(0x4 ^ 0x6)) << 4);
-                  current_off |= (((uintptr_t)(0x4 ^ 0xC)) << 0);
-                  offsets.push_back(current_off);
-              }
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0x1 ^ 0xC)) << 16);
-                  current_off |= (((uintptr_t)(0x4 ^ 0x9)) << 12);
-                  current_off |= (((uintptr_t)(0xE ^ 0xC)) << 8);
-                  current_off |= (((uintptr_t)(0xB ^ 0xE)) << 4);
-                  current_off |= (((uintptr_t)(0x3 ^ 0x3)) << 0);
-                  offsets.push_back(current_off);
-              }
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0x6 ^ 0xB)) << 16);
-                  current_off |= (((uintptr_t)(0x2 ^ 0x5)) << 12);
-                  current_off |= (((uintptr_t)(0x3 ^ 0x8)) << 8);
-                  current_off |= (((uintptr_t)(0xE ^ 0x4)) << 4);
-                  current_off |= (((uintptr_t)(0xA ^ 0xA)) << 0);
-                  offsets.push_back(current_off);
-              }
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0xB ^ 0x2)) << 16);
-                  current_off |= (((uintptr_t)(0x2 ^ 0xB)) << 12);
-                  current_off |= (((uintptr_t)(0xE ^ 0x4)) << 8);
-                  current_off |= (((uintptr_t)(0x3 ^ 0xE)) << 4);
-                  current_off |= (((uintptr_t)(0x7 ^ 0x7)) << 0);
-                  offsets.push_back(current_off);
-              }
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0x0 ^ 0x8)) << 16);
-                  current_off |= (((uintptr_t)(0x5 ^ 0x7)) << 12);
-                  current_off |= (((uintptr_t)(0x7 ^ 0x8)) << 8);
-                  current_off |= (((uintptr_t)(0x1 ^ 0xA)) << 4);
-                  current_off |= (((uintptr_t)(0x7 ^ 0xB)) << 0);
-                  offsets.push_back(current_off);
-              }
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0xE ^ 0x9)) << 16);
-                  current_off |= (((uintptr_t)(0xF ^ 0x1)) << 12);
-                  current_off |= (((uintptr_t)(0x5 ^ 0x8)) << 8);
-                  current_off |= (((uintptr_t)(0xE ^ 0xA)) << 4);
-                  current_off |= (((uintptr_t)(0xB ^ 0x7)) << 0);
-                  offsets.push_back(current_off);
-              }
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0x4 ^ 0x3)) << 16);
-                  current_off |= (((uintptr_t)(0x1 ^ 0xA)) << 12);
-                  current_off |= (((uintptr_t)(0x8 ^ 0xA)) << 8);
-                  current_off |= (((uintptr_t)(0x7 ^ 0xD)) << 4);
-                  current_off |= (((uintptr_t)(0xC ^ 0x4)) << 0);
-                  offsets.push_back(current_off);
-              }
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0xE ^ 0x8)) << 16);
-                  current_off |= (((uintptr_t)(0x7 ^ 0xF)) << 12);
-                  current_off |= (((uintptr_t)(0x0 ^ 0xD)) << 8);
-                  current_off |= (((uintptr_t)(0x0 ^ 0x3)) << 4);
-                  current_off |= (((uintptr_t)(0xF ^ 0xB)) << 0);
-                  offsets.push_back(current_off);
-              }
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0xF ^ 0xB)) << 16);
-                  current_off |= (((uintptr_t)(0x7 ^ 0x3)) << 12);
-                  current_off |= (((uintptr_t)(0x6 ^ 0x9)) << 8);
-                  current_off |= (((uintptr_t)(0xB ^ 0xD)) << 4);
-                  current_off |= (((uintptr_t)(0xA ^ 0x6)) << 0);
-                  offsets.push_back(current_off);
-              }
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0x4 ^ 0x7)) << 16);
-                  current_off |= (((uintptr_t)(0x4 ^ 0xF)) << 12);
-                  current_off |= (((uintptr_t)(0x0 ^ 0x3)) << 8);
-                  current_off |= (((uintptr_t)(0x1 ^ 0x6)) << 4);
-                  current_off |= (((uintptr_t)(0xB ^ 0xB)) << 0);
-                  offsets.push_back(current_off);
-              }
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0xD ^ 0xE)) << 16);
-                  current_off |= (((uintptr_t)(0x2 ^ 0x5)) << 12);
-                  current_off |= (((uintptr_t)(0x2 ^ 0x4)) << 8);
-                  current_off |= (((uintptr_t)(0x3 ^ 0x9)) << 4);
-                  current_off |= (((uintptr_t)(0x7 ^ 0x7)) << 0);
-                  offsets.push_back(current_off);
-              }
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0x2 ^ 0xE)) << 12);
-                  current_off |= (((uintptr_t)(0x0 ^ 0xD)) << 8);
-                  current_off |= (((uintptr_t)(0x0 ^ 0x1)) << 4);
-                  current_off |= (((uintptr_t)(0x7 ^ 0xB)) << 0);
-                  offsets.push_back(current_off);
-              }
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0x3 ^ 0x5)) << 12);
-                  current_off |= (((uintptr_t)(0x5 ^ 0x1)) << 8);
-                  current_off |= (((uintptr_t)(0xB ^ 0x2)) << 4);
-                  current_off |= (((uintptr_t)(0xF ^ 0x7)) << 0);
-                  offsets.push_back(current_off);
-              }
-              return offsets;
-          }
-
-
-          // ==========================================
-          // 🎨 واجهة محمد الشمري المظبوطة (زر دخول + لمبتين)
-          // ==========================================
-          @interface FalconEyeUI : NSObject
+          @interface BlackKingUI : NSObject
           + (instancetype)shared;
           @property (nonatomic, strong) UIView *blackOverlay;
           @property (nonatomic, strong) UIView *loginBox;
           @property (nonatomic, strong) UIView *purpleBanner;
-          @property (nonatomic, strong) UIView *statusContainer;
-          @property (nonatomic, strong) UILabel *lampConn; // غيرناها إلى Label لدعم الإيموجي والنص
-          @property (nonatomic, strong) UILabel *lampSec;  // غيرناها إلى Label لدعم الإيموجي والنص
+          @property (nonatomic, strong) UIButton *lampConn; 
+          @property (nonatomic, strong) UIButton *lampSec;  
           @property (nonatomic, strong) UIView *maintenanceView;
           @end
 
-          @implementation FalconEyeUI
+          @implementation BlackKingUI
           + (instancetype)shared {
-              static FalconEyeUI *i; static dispatch_once_t o;
-              dispatch_once(&o, ^{ i = [[FalconEyeUI alloc] init]; }); return i;
+              static BlackKingUI *i; static dispatch_once_t o;
+              dispatch_once(&o, ^{ i = [[BlackKingUI alloc] init]; }); return i;
           }
 
           - (void)drawLogin {
@@ -195,51 +54,61 @@ jobs:
               self.blackOverlay.backgroundColor = [UIColor colorWithWhite:0 alpha:0.9];
               [w addSubview:self.blackOverlay];
 
-              // صغرنا حجم الصندوق لأننا حذفنا حقل الإدخال
-              self.loginBox = [[UIView alloc] initWithFrame:CGRectMake(w.bounds.size.width/2-140, w.bounds.size.height/2-80, 280, 160)];
-              self.loginBox.backgroundColor = [UIColor colorWithRed:0.05 green:0.05 blue:0.1 alpha:1.0];
-              self.loginBox.layer.cornerRadius = 20;
-              self.loginBox.layer.borderColor = [UIColor cyanColor].CGColor;
+              // تصميم اللوكن مطابق للفيديو (صغير، عمودي، بدون حقل إدخال)
+              CGFloat boxWidth = 260;
+              CGFloat boxHeight = 200;
+              self.loginBox = [[UIView alloc] initWithFrame:CGRectMake((w.bounds.size.width - boxWidth)/2, (w.bounds.size.height - boxHeight)/2, boxWidth, boxHeight)];
+              self.loginBox.backgroundColor = [UIColor colorWithRed:0.04 green:0.06 blue:0.1 alpha:0.95];
+              self.loginBox.layer.cornerRadius = 24;
+              self.loginBox.layer.borderColor = [UIColor colorWithRed:0.2 green:0.7 blue:1.0 alpha:0.5].CGColor;
               self.loginBox.layer.borderWidth = 1.5;
-              [self.blackOverlay addSubview:self.loginBox];
+    
+              // أيقونة 
+              UILabel *icon = [[UILabel alloc] initWithFrame:CGRectMake(0, 20, boxWidth, 40)];
+              icon.text = @"👑";
+              icon.font = [UIFont systemFontOfSize:36];
+              icon.textAlignment = NSTextAlignmentCenter;
+              [self.loginBox addSubview:icon];
 
-              UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(0, 25, 280, 30)];
-              title.text = @"🦅 محمد الشمري VIP";
+              UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(0, 70, boxWidth, 30)];
+              title.text = @"BLACK KING";
               title.textColor = [UIColor whiteColor];
               title.textAlignment = NSTextAlignmentCenter;
-              title.font = [UIFont boldSystemFontOfSize:20];
+              title.font = [UIFont fontWithName:@"CourierNewPS-BoldMT" size:22] ?: [UIFont boldSystemFontOfSize:22];
               [self.loginBox addSubview:title];
 
-              // زر الدخول فقط بدون حقل إدخال الكود
+              // زر التفعيل فقط
               UIButton *btn = [UIButton buttonWithType:UIButtonTypeSystem];
-              btn.frame = CGRectMake(30, 85, 220, 50);
-              btn.backgroundColor = [UIColor systemBlueColor];
+              btn.frame = CGRectMake(30, 130, boxWidth - 60, 45);
+              btn.backgroundColor = [UIColor colorWithRed:0.1 green:0.4 blue:0.8 alpha:1.0];
               [btn setTitle:@"تفعيل الدخول" forState:UIControlStateNormal];
               [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-              btn.layer.cornerRadius = 10;
-              btn.titleLabel.font = [UIFont boldSystemFontOfSize:18];
+              btn.titleLabel.font = [UIFont boldSystemFontOfSize:16];
+              btn.layer.cornerRadius = 12;
               [btn addTarget:self action:@selector(handleLogin) forControlEvents:UIControlEventTouchUpInside];
               [self.loginBox addSubview:btn];
+
+              [self.blackOverlay addSubview:self.loginBox];
           }
 
           - (void)handleLogin {
               UIView *l = [[UIView alloc] initWithFrame:self.loginBox.bounds];
               l.backgroundColor = [UIColor blackColor];
-              l.layer.cornerRadius = 20;
+              l.layer.cornerRadius = 24;
               UIActivityIndicatorView *act = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhiteLarge];
-              act.center = CGPointMake(140, 60);
+              act.center = CGPointMake(130, 80);
               [act startAnimating];
               [l addSubview:act];
     
-              UILabel *lbl = [[UILabel alloc] initWithFrame:CGRectMake(0, 90, 280, 30)];
-              lbl.text = @"جاري تجميد الجواسيس...";
-              lbl.textColor = [UIColor cyanColor];
+              UILabel *lbl = [[UILabel alloc] initWithFrame:CGRectMake(0, 110, 260, 30)];
+              lbl.text = @"CONNECTING...";
+              lbl.textColor = [UIColor colorWithRed:0.2 green:0.7 blue:1.0 alpha:1.0];
               lbl.textAlignment = NSTextAlignmentCenter;
-              lbl.font = [UIFont boldSystemFontOfSize:14];
+              lbl.font = [UIFont boldSystemFontOfSize:12];
               [l addSubview:lbl];
               [self.loginBox addSubview:l];
 
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                   [UIView animateWithDuration:0.4 animations:^{ 
                       self.blackOverlay.alpha = 0; 
                   } completion:^(BOOL f){
@@ -253,14 +122,15 @@ jobs:
               UIWindow *w = [UIApplication sharedApplication].keyWindow;
     
               CGFloat bannerHeight = 55;
+              // الشريط ملتصق بالسقف بدون فراغ
               self.purpleBanner = [[UIView alloc] initWithFrame:CGRectMake(0, -bannerHeight, w.bounds.size.width, bannerHeight)];
-              self.purpleBanner.backgroundColor = [UIColor colorWithRed:0.35 green:0.18 blue:0.65 alpha:1.0]; 
+              self.purpleBanner.backgroundColor = [UIColor colorWithRed:0.1 green:0.2 blue:0.6 alpha:0.9]; 
     
-              UILabel *t = [[UILabel alloc] initWithFrame:CGRectMake(0, 15, w.bounds.size.width, 40)];
-              t.text = @"✅  تم تفعيل حماية الشمري بنجاح";
+              UILabel *t = [[UILabel alloc] initWithFrame:CGRectMake(0, 15, w.bounds.size.width, 30)];
+              t.text = @"✅ تم تفعيل حماية BLACK KING";
               t.textColor = [UIColor whiteColor]; 
               t.textAlignment = NSTextAlignmentCenter;
-              t.font = [UIFont systemFontOfSize:15 weight:UIFontWeightBold];
+              t.font = [UIFont boldSystemFontOfSize:14];
               [self.purpleBanner addSubview:t]; 
               [w addSubview:self.purpleBanner];
 
@@ -279,102 +149,118 @@ jobs:
           }
 
           - (void)drawLamps:(UIWindow*)w {
-              // تكبير الحاوية قليلاً لتتسع للنصوص الإنكليزية
-              self.statusContainer = [[UIView alloc] initWithFrame:CGRectMake(w.bounds.size.width/2-110, 10, 220, 30)];
-              self.statusContainer.backgroundColor = [UIColor colorWithWhite:0 alpha:0.6];
-              self.statusContainer.layer.cornerRadius = 15;
+              // 💡 اللمبات حرة بدون صندوق خلفي، في الأعلى، وتعمل كأزرار!
     
-              // لمبة الاتصال (اليسار)
-              self.lampConn = [[UILabel alloc] initWithFrame:CGRectMake(15, 0, 90, 30)];
-              self.lampConn.text = @"🔴 Offline";
-              self.lampConn.textColor = [UIColor redColor];
-              self.lampConn.font = [UIFont boldSystemFontOfSize:12];
-              [self.statusContainer addSubview:self.lampConn];
+              // 1. لمبة الاتصال (اليسار)
+              self.lampConn = [UIButton buttonWithType:UIButtonTypeCustom];
+              self.lampConn.frame = CGRectMake(30, 20, 140, 30);
+              [self.lampConn setTitle:@"🔴 Disconnected" forState:UIControlStateNormal];
+              [self.lampConn setTitleColor:[UIColor redColor] forState:UIControlStateNormal];
+              self.lampConn.titleLabel.font = [UIFont fontWithName:@"CourierNewPS-BoldMT" size:12] ?: [UIFont boldSystemFontOfSize:12];
+              self.lampConn.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeft;
+              self.lampConn.layer.shadowColor = [UIColor blackColor].CGColor;
+              self.lampConn.layer.shadowOffset = CGSizeMake(1, 1);
+              self.lampConn.layer.shadowOpacity = 1.0;
     
-              // لمبة الأمان (اليمين) - درع أو جمجمة
-              self.lampSec = [[UILabel alloc] initWithFrame:CGRectMake(115, 0, 90, 30)];
-              self.lampSec.text = @"🛡️ Safe";
-              self.lampSec.textColor = [UIColor lightGrayColor]; // لون مبدئي
-              self.lampSec.textAlignment = NSTextAlignmentRight;
-              self.lampSec.font = [UIFont boldSystemFontOfSize:12];
-              [self.statusContainer addSubview:self.lampSec];
+              [self.lampConn addTarget:self action:@selector(forceSync) forControlEvents:UIControlEventTouchUpInside];
+              [w addSubview:self.lampConn];
     
-              [w addSubview:self.statusContainer];
-              [self startSync];
+              // 2. لمبة الأمان (اليمين)
+              self.lampSec = [UIButton buttonWithType:UIButtonTypeCustom];
+              self.lampSec.frame = CGRectMake(w.bounds.size.width - 150, 20, 120, 30);
+              [self.lampSec setTitle:@"🛡️ Status" forState:UIControlStateNormal];
+              [self.lampSec setTitleColor:[UIColor lightGrayColor] forState:UIControlStateNormal];
+              self.lampSec.titleLabel.font = [UIFont fontWithName:@"CourierNewPS-BoldMT" size:12] ?: [UIFont boldSystemFontOfSize:12];
+              self.lampSec.contentHorizontalAlignment = UIControlContentHorizontalAlignmentRight;
+              self.lampSec.layer.shadowColor = [UIColor blackColor].CGColor;
+              self.lampSec.layer.shadowOffset = CGSizeMake(1, 1);
+              self.lampSec.layer.shadowOpacity = 1.0;
+    
+              [self.lampSec addTarget:self action:@selector(forceSync) forControlEvents:UIControlEventTouchUpInside];
+              [w addSubview:self.lampSec];
+    
+              // المزامنة التلقائية
+              [self forceSync];
+              [NSTimer scheduledTimerWithTimeInterval:8.0 target:self selector:@selector(forceSync) userInfo:nil repeats:YES];
           }
 
-          - (void)startSync {
-              [NSTimer scheduledTimerWithTimeInterval:4.0 repeats:YES block:^(NSTimer *t) {
-                  NSString *udid = [[[UIDevice currentDevice] identifierForVendor] UUIDString];
-                  NSString *dev = [[UIDevice currentDevice] model];
-                  NSString *encodedDev = [dev stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
-        
-                  NSString *fullUrlStr = [NSString stringWithFormat:@"%@&udid=%@&device=%@", GetDecryptedURL(), udid, encodedDev];
-                  NSURL *u = [NSURL URLWithString:fullUrlStr];
-        
-                  [[[NSURLSession sharedSession] dataTaskWithURL:u completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
-                      dispatch_async(dispatch_get_main_queue(), ^{
-                          if(e || !d) { 
-                              self.lampConn.text = @"🔴 Offline";
-                              self.lampConn.textColor = [UIColor redColor];
-                              return; 
+          - (void)forceSync {
+              // وميض التحديث
+              self.lampConn.alpha = 0.5; self.lampSec.alpha = 0.5;
+              [UIView animateWithDuration:0.3 animations:^{ self.lampConn.alpha = 1.0; self.lampSec.alpha = 1.0; }];
+
+              NSString *udid = [[[UIDevice currentDevice] identifierForVendor] UUIDString];
+              NSString *dev = [[UIDevice currentDevice] model];
+              NSString *encodedDev = [dev stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
+    
+              NSString *fullUrlStr = [NSString stringWithFormat:@"%@&udid=%@&device=%@", GetDecryptedURL(), udid, encodedDev];
+              NSURL *u = [NSURL URLWithString:fullUrlStr];
+    
+              [[[NSURLSession sharedSession] dataTaskWithURL:u completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
+                  dispatch_async(dispatch_get_main_queue(), ^{
+                      if(e || !d) { 
+                          [self.lampConn setTitle:@"🔴 Offline" forState:UIControlStateNormal];
+                          [self.lampConn setTitleColor:[UIColor redColor] forState:UIControlStateNormal];
+                          return; 
+                      }
+            
+                      [self.lampConn setTitle:@"🟢 Online" forState:UIControlStateNormal];
+                      [self.lampConn setTitleColor:[UIColor greenColor] forState:UIControlStateNormal];
+            
+                      NSDictionary *j = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
+                      if(j) {
+                          if([j[@"banned"] boolValue] == YES || [j[@"status"] isEqualToString:@"crash"]) exit(0);
+                
+                          if([j[@"security"] isEqualToString:@"safe"]) {
+                              [self.lampSec setTitle:@"🛡️ Safe" forState:UIControlStateNormal];
+                              [self.lampSec setTitleColor:[UIColor greenColor] forState:UIControlStateNormal];
+                          } else {
+                              [self.lampSec setTitle:@"☠️ Danger" forState:UIControlStateNormal];
+                              [self.lampSec setTitleColor:[UIColor redColor] forState:UIControlStateNormal];
                           }
                 
-                          self.lampConn.text = @"🟢 Online";
-                          self.lampConn.textColor = [UIColor greenColor];
-                
-                          NSDictionary *j = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
-                          if(j) {
-                              if([j[@"banned"] boolValue] == YES || [j[@"status"] isEqualToString:@"crash"]) exit(0);
-                    
-                              // تغيير شكل لمبة الأمان إلى درع أو جمجمة
-                              if([j[@"security"] isEqualToString:@"safe"]) {
-                                  self.lampSec.text = @"🛡️ Safe";
-                                  self.lampSec.textColor = [UIColor greenColor];
-                              } else {
-                                  self.lampSec.text = @"☠️ Danger";
-                                  self.lampSec.textColor = [UIColor redColor];
+                          if([j[@"status"] isEqualToString:@"maintenance"]) {
+                              if (!self.maintenanceView) {
+                                  self.maintenanceView = [[UIView alloc] initWithFrame:[UIScreen mainScreen].bounds];
+                                  self.maintenanceView.backgroundColor = [UIColor blackColor];
+                                  UILabel *mt = [[UILabel alloc] initWithFrame:self.maintenanceView.bounds];
+                                  mt.text = @"🚧 BLACK KING UNDER MAINTENANCE"; 
+                                  mt.textColor = [UIColor yellowColor]; 
+                                  mt.font = [UIFont boldSystemFontOfSize:20];
+                                  mt.textAlignment = NSTextAlignmentCenter;
+                                  [self.maintenanceView addSubview:mt]; 
+                                  [[UIApplication sharedApplication].keyWindow addSubview:self.maintenanceView];
                               }
-                    
-                              if([j[@"status"] isEqualToString:@"maintenance"]) {
-                                  if (!self.maintenanceView) {
-                                      self.maintenanceView = [[UIView alloc] initWithFrame:[UIScreen mainScreen].bounds];
-                                      self.maintenanceView.backgroundColor = [UIColor blackColor];
-                                      UILabel *mt = [[UILabel alloc] initWithFrame:self.maintenanceView.bounds];
-                                      mt.text = @"🚧 اللعبة تحت الصيانة بواسطة الإدارة"; 
-                                      mt.textColor = [UIColor yellowColor]; 
-                                      mt.font = [UIFont boldSystemFontOfSize:20];
-                                      mt.textAlignment = NSTextAlignmentCenter;
-                                      [self.maintenanceView addSubview:mt]; 
-                                      [[UIApplication sharedApplication].keyWindow addSubview:self.maintenanceView];
-                                  }
-                              } else {
-                                  if (self.maintenanceView) {
-                                      [self.maintenanceView removeFromSuperview];
-                                      self.maintenanceView = nil;
-                                  }
+                          } else {
+                              if (self.maintenanceView) {
+                                  [self.maintenanceView removeFromSuperview];
+                                  self.maintenanceView = nil;
                               }
                           }
-                      });
-                  }] resume];
-              }];
+                      }
+                  });
+              }] resume];
           }
           @end
 
           // ==========================================
-          // ⚔️ جدار الحماية (Fishhook Spoofer with Shredded Offsets)
+          // ⚔️ جدار الحماية (Fishhook Spoofer)
+          // 🎯 يراقب anogs ويخنقه لمنع الكراش
           // ==========================================
+
+          static uintptr_t bk_offsets[] = { 0x185A9C, 0x185228, 0xDD250, 0xD7BA0, 0x99AD0, 0x82FBC, 0x7ED4C, 0x7B2A8, 0x68D34, 0x44F6C, 0x3B370, 0x376A0, 0xCD1C, 0x6498 };
+          static int total_offsets = sizeof(bk_offsets) / sizeof(bk_offsets[0]);
 
           static void* (*orig_dlsym)(void* handle, const char* symbol);
           static int (*orig_access)(const char *path, int amode);
+          static int (*orig_sysctlbyname)(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen);
 
-          BOOL isTargetOffset() {
+          // الخوارزمية الذكية لكشف الأوفست بالذاكرة الحية بدون كراش
+          BOOL isBlockedAnogs() {
               void* ret_addr = __builtin_return_address(0);
               Dl_info info;
-    
               if (dladdr(ret_addr, &info) && info.dli_fname) {
                   NSString *caller = [[NSString stringWithUTF8String:info.dli_fname] lowercaseString];
-        
                   if ([caller containsString:@"anogs"]) {
                       uintptr_t slide = 0;
                       for (uint32_t i = 0; i < _dyld_image_count(); i++) {
@@ -383,13 +269,11 @@ jobs:
                               break;
                           }
                       }
-            
                       uintptr_t real_offset = (uintptr_t)ret_addr - slide;
-                      std::vector<uintptr_t> active_offsets = GetShreddedOffsets();
-            
-                      for (uintptr_t target_off : active_offsets) {
-                          if (real_offset >= (target_off - 0x50) && real_offset <= (target_off + 0x50)) {
-                              return YES;
+                      for (int i = 0; i < total_offsets; i++) {
+                          // نطاق حماية واسع (50 بايت) لتغطية القفزات
+                          if (real_offset >= (bk_offsets[i] - 0x50) && real_offset <= (bk_offsets[i] + 0x50)) {
+                              return YES; // 👈 هذا الأوفست مستهدف من قبل مسعود!
                           }
                       }
                   }
@@ -398,43 +282,42 @@ jobs:
           }
 
           void* hk_dlsym(void* handle, const char* symbol) {
-              if (isTargetOffset()) {
-                  return NULL;
-              }
+              if (isBlockedAnogs()) return NULL; // إعماء تام 
               return orig_dlsym(handle, symbol);
           }
 
           int hk_access(const char *path, int amode) {
-              if (isTargetOffset()) {
-                  return -1; 
-              }
+              if (isBlockedAnogs()) return -1; // تخبئة الملفات
               return orig_access(path, amode);
           }
 
+          int hk_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+              if (isBlockedAnogs()) return -1; // تخبئة معلومات الجهاز
+              return orig_sysctlbyname(name, oldp, oldlenp, newp, newlen);
+          }
+
           __attribute__((constructor))
-          static void shammari_init_safe() {
+          static void bk_init_safe() {
               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                  [[FalconEyeUI shared] drawLogin];
+                  [[BlackKingUI shared] drawLogin];
         
                   struct rebinding hooks[] = {
                       {"dlsym", (void *)hk_dlsym, (void **)&orig_dlsym},
-                      {"access", (void *)hk_access, (void **)&orig_access}
+                      {"access", (void *)hk_access, (void **)&orig_access},
+                      {"sysctlbyname", (void *)hk_sysctlbyname, (void **)&orig_sysctlbyname}
                   };
-                  rebind_symbols(hooks, 2);
+                  rebind_symbols(hooks, 3);
+        
+                  NSLog(@"[BLACK KING] 👑 System Armed & Ready (Zero Crash).");
               });
           }
 
           EOF
           
-      - name: Compile Safe Dylib
-        run: |
-          clang++ -dynamiclib -std=c++11 -arch arm64 \
-          -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-          jni/main.mm jni/fishhook.c -o ShammariVIP.dylib \
-          -framework Foundation -framework UIKit -lobjc
-          strip -x ShammariVIP.dylib
+          clang++ -dynamiclib -std=c++11 -arch arm64 -isysroot $(xcrun --sdk iphoneos --show-sdk-path) jni/main.mm jni/fishhook.c -o BlackKing.dylib -framework Foundation -framework UIKit -lobjc
+          strip -x BlackKing.dylib
           
       - uses: actions/upload-artifact@v4
         with:
-          name: Shammari-Shredded-Offsets
-          path: ShammariVIP.dylib
+          name: Black-King-Dylib
+          path: BlackKing.dylib
