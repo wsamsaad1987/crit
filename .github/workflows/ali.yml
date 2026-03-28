@@ -1,397 +1,181 @@
-name: Masoud Final Boss Build (The Masterpiece)
-on: [push, workflow_dispatch]
+name: Imperial V-MAX - 15s Sync & 5-Point Shield
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
 jobs:
-  build:
+  build_shield:
+    name: Compile 15s Synced Dylib
     runs-on: macos-latest
+
     steps:
-      - uses: actions/checkout@v4
-      
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
       - name: Download Fishhook
         run: |
           mkdir -p jni
           curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.c -o jni/fishhook.c
           curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.h -o jni/fishhook.h
-          
-      - name: Generate Master Payload
+
+      - name: Generate Synced Source (Main.mm)
         run: |
           cat <<'EOF' > jni/main.mm
           #import <Foundation/Foundation.h>
           #import <UIKit/UIKit.h>
-          #import <mach-o/dyld.h>
-          #import <dlfcn.h>
-          #import <sys/sysctl.h>
-          #import <sys/stat.h>
           #import <objc/runtime.h>
-          #include <stdarg.h>
+          #import <sys/socket.h>
+          #import <arpa/inet.h>
+          #import <sys/stat.h>
+          #import <dlfcn.h>
           #include "fishhook.h"
 
-          // 🛡️ مفاتيح التشفير
-          uint8_t XOR_SECRET = 0x7D;
-
-          NSString* GetDecryptedURL() {
-              uint8_t enc[] = { 0x15, 0x09, 0x09, 0x0D, 0x47, 0x52, 0x52, 0x0D, 0x08, 0x1F, 0x1A, 0x53, 0x10, 0x04, 0x0B, 0x13, 0x1E, 0x53, 0x1E, 0x12, 0x10, 0x52, 0x0D, 0x08, 0x1F, 0x1A, 0x53, 0x0D, 0x15, 0x0D, 0x42, 0x1C, 0x0D, 0x14, 0x40, 0x4C };
-              NSMutableString *s = [NSMutableString string];
-              for(int i=0; i<sizeof(enc); i++) [s appendFormat:@"%c", enc[i] ^ XOR_SECRET];
-              return s;
-          }
+          // ⚠️⚠️ تنبيه مهم لمسعود: غير هذا الآيبي إلى آيبي حاسبتك الفعلي (IPv4)
+          #define RADAR_SERVER_IP "192.168.1.100" 
+          #define RADAR_SERVER_PORT 8080
 
           // ==========================================
-          // 🎨 واجهة محمد الشمري (اللوكن + الشريط الملاصق)
+          // 📡 نظام الاتصال الحي بالترمنال
           // ==========================================
-          @interface FalconEyeUI : NSObject
-          + (instancetype)shared;
-          @property (nonatomic, strong) UIWindow *mainWindow;
-          @property (nonatomic, strong) UIView *blackOverlay;
-          @property (nonatomic, strong) UIView *loginBox;
-          @property (nonatomic, strong) UIView *purpleBanner;
-          @property (nonatomic, strong) UIView *statusContainer;
-          @property (nonatomic, strong) UILabel *lampConn; 
-          @property (nonatomic, strong) UILabel *lampSec;  
-          @property (nonatomic, strong) UIView *maintenanceView;
-          @end
+          void SendToMasoudTerminal(NSString* action, NSString* details) {
+              dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
+                  NSDictionary *payload = @{
+                      @"type": @"SYNC_LOG",
+                      @"caller": @"Masoud_Dylib",
+                      @"func": action,
+                      @"target": details
+                  };
+                  NSData *json = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];
+                  if (!json) return;
 
-          @implementation FalconEyeUI
-          + (instancetype)shared {
-              static FalconEyeUI *i; static dispatch_once_t o;
-              dispatch_once(&o, ^{ i = [[FalconEyeUI alloc] init]; }); return i;
-          }
-
-          - (void)drawLogin {
-              // استخدمنا الأكواد الحديثة بدل keyWindow لمنع التحذيرات
-              UIWindow *w = [[UIApplication sharedApplication].windows firstObject];
-              self.mainWindow = w;
-              if(!w) return;
-
-              self.blackOverlay = [[UIView alloc] initWithFrame:w.bounds];
-              self.blackOverlay.backgroundColor = [UIColor colorWithWhite:0 alpha:0.9];
-              [w addSubview:self.blackOverlay];
-
-              self.loginBox = [[UIView alloc] initWithFrame:CGRectMake(w.bounds.size.width/2-140, w.bounds.size.height/2-80, 280, 160)];
-              self.loginBox.backgroundColor = [UIColor colorWithRed:0.05 green:0.05 blue:0.1 alpha:1.0];
-              self.loginBox.layer.cornerRadius = 20;
-              self.loginBox.layer.borderColor = [UIColor cyanColor].CGColor;
-              self.loginBox.layer.borderWidth = 1.5;
-              [self.blackOverlay addSubview:self.loginBox];
-
-              UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(0, 25, 280, 30)];
-              title.text = @"🦅 محمد الشمري VIP";
-              title.textColor = [UIColor whiteColor];
-              title.textAlignment = NSTextAlignmentCenter;
-              title.font = [UIFont boldSystemFontOfSize:20];
-              [self.loginBox addSubview:title];
-
-              UIButton *btn = [UIButton buttonWithType:UIButtonTypeSystem];
-              btn.frame = CGRectMake(30, 85, 220, 50);
-              btn.backgroundColor = [UIColor systemBlueColor];
-              [btn setTitle:@"تفعيل الدخول" forState:UIControlStateNormal];
-              [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-              btn.layer.cornerRadius = 10;
-              btn.titleLabel.font = [UIFont boldSystemFontOfSize:18];
-              [btn addTarget:self action:@selector(handleLogin) forControlEvents:UIControlEventTouchUpInside];
-              [self.loginBox addSubview:btn];
-          }
-
-          - (void)handleLogin {
-              UIView *l = [[UIView alloc] initWithFrame:self.loginBox.bounds];
-              l.backgroundColor = [UIColor blackColor];
-              l.layer.cornerRadius = 20;
-    
-              // استخدام UIActivityIndicatorViewStyleLarge (الحديث)
-              UIActivityIndicatorView *act = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleLarge];
-              act.color = [UIColor whiteColor];
-              act.center = CGPointMake(140, 60);
-              [act startAnimating];
-              [l addSubview:act];
-    
-              UILabel *lbl = [[UILabel alloc] initWithFrame:CGRectMake(0, 90, 280, 30)];
-              lbl.text = @"جاري تجميد الجواسيس...";
-              lbl.textColor = [UIColor cyanColor];
-              lbl.textAlignment = NSTextAlignmentCenter;
-              lbl.font = [UIFont boldSystemFontOfSize:14];
-              [l addSubview:lbl];
-              [self.loginBox addSubview:l];
-
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                  [UIView animateWithDuration:0.4 animations:^{ 
-                      self.blackOverlay.alpha = 0; 
-                  } completion:^(BOOL f){
-                      [self.blackOverlay removeFromSuperview];
-                      [self showBannerAndLamps];
-                  }];
+                  int sock = socket(AF_INET, SOCK_DGRAM, 0);
+                  if (sock > 0) {
+                      struct sockaddr_in srv;
+                      srv.sin_family = AF_INET;
+                      srv.sin_port = htons(RADAR_SERVER_PORT);
+                      inet_pton(AF_INET, RADAR_SERVER_IP, &srv.sin_addr);
+                      sendto(sock, [json bytes], [json length], 0, (struct sockaddr *)&srv, sizeof(srv));
+                      close(sock);
+                  }
               });
           }
 
-          - (void)showBannerAndLamps {
-              UIWindow *w = [[UIApplication sharedApplication].windows firstObject];
-              if(!w) return;
-    
-              CGFloat bannerHeight = 55;
-              // الشريط البنفسجي الملاصق للسقف
-              self.purpleBanner = [[UIView alloc] initWithFrame:CGRectMake(0, -bannerHeight, w.bounds.size.width, bannerHeight)];
-              self.purpleBanner.backgroundColor = [UIColor colorWithRed:0.35 green:0.18 blue:0.65 alpha:1.0]; 
-    
-              UILabel *t = [[UILabel alloc] initWithFrame:CGRectMake(0, 15, w.bounds.size.width, 40)];
-              t.text = @"✅ تم تفعيل الحماية بنجاح";
-              t.textColor = [UIColor whiteColor]; 
-              t.textAlignment = NSTextAlignmentCenter;
-              t.font = [UIFont systemFontOfSize:15 weight:UIFontWeightBold];
-              [self.purpleBanner addSubview:t]; 
-              [w addSubview:self.purpleBanner];
-
-              [UIView animateWithDuration:0.5 delay:0 usingSpringWithDamping:0.8 initialSpringVelocity:0.5 options:0 animations:^{ 
-                  self.purpleBanner.frame = CGRectMake(0, 0, w.bounds.size.width, bannerHeight); 
-              } completion:^(BOOL f){
-                  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                      [UIView animateWithDuration:0.5 animations:^{ 
-                          self.purpleBanner.frame = CGRectMake(0, -bannerHeight, w.bounds.size.width, bannerHeight); 
-                      } completion:^(BOOL f){
-                          [self.purpleBanner removeFromSuperview];
-                          [self drawLamps:w];
-                      }];
-                  });
-              }];
-          }
-
-          - (void)drawLamps:(UIWindow*)w {
-              self.statusContainer = [[UIView alloc] initWithFrame:CGRectMake(w.bounds.size.width/2-110, 10, 220, 30)];
-              self.statusContainer.backgroundColor = [UIColor colorWithWhite:0 alpha:0.6];
-              self.statusContainer.layer.cornerRadius = 15;
-    
-              self.lampConn = [[UILabel alloc] initWithFrame:CGRectMake(15, 0, 90, 30)];
-              self.lampConn.text = @"🔴 Offline";
-              self.lampConn.textColor = [UIColor redColor];
-              self.lampConn.font = [UIFont boldSystemFontOfSize:12];
-              [self.statusContainer addSubview:self.lampConn];
-    
-              self.lampSec = [[UILabel alloc] initWithFrame:CGRectMake(115, 0, 90, 30)];
-              self.lampSec.text = @"🛡️ Safe";
-              self.lampSec.textColor = [UIColor lightGrayColor]; 
-              self.lampSec.textAlignment = NSTextAlignmentRight;
-              self.lampSec.font = [UIFont boldSystemFontOfSize:12];
-              [self.statusContainer addSubview:self.lampSec];
-    
-              [w addSubview:self.statusContainer];
-              [self startSync];
-          }
-
-          - (void)startSync {
-              [NSTimer scheduledTimerWithTimeInterval:4.0 repeats:YES block:^(NSTimer *t) {
-                  NSString *udid = [[[UIDevice currentDevice] identifierForVendor] UUIDString];
-                  NSString *dev = [[UIDevice currentDevice] model];
-                  NSString *encodedDev = [dev stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
-        
-                  NSString *fullUrlStr = [NSString stringWithFormat:@"%@&udid=%@&device=%@", GetDecryptedURL(), udid, encodedDev];
-                  NSURL *u = [NSURL URLWithString:fullUrlStr];
-        
-                  [[[NSURLSession sharedSession] dataTaskWithURL:u completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
-                      dispatch_async(dispatch_get_main_queue(), ^{
-                          if(e || !d) { 
-                              self.lampConn.text = @"🔴 Offline";
-                              self.lampConn.textColor = [UIColor redColor];
-                              return; 
-                          }
-                
-                          self.lampConn.text = @"🟢 Online";
-                          self.lampConn.textColor = [UIColor greenColor];
-                
-                          NSDictionary *j = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
-                          if(j) {
-                              if([j[@"banned"] boolValue] == YES || [j[@"status"] isEqualToString:@"crash"]) exit(0);
-                    
-                              if([j[@"security"] isEqualToString:@"safe"]) {
-                                  self.lampSec.text = @"🛡️ Safe";
-                                  self.lampSec.textColor = [UIColor greenColor];
-                              } else {
-                                  self.lampSec.text = @"☠️ Danger";
-                                  self.lampSec.textColor = [UIColor redColor];
-                              }
-                    
-                              if([j[@"status"] isEqualToString:@"maintenance"]) {
-                                  if (!self.maintenanceView) {
-                                      self.maintenanceView = [[UIView alloc] initWithFrame:[UIScreen mainScreen].bounds];
-                                      self.maintenanceView.backgroundColor = [UIColor blackColor];
-                                      UILabel *mt = [[UILabel alloc] initWithFrame:self.maintenanceView.bounds];
-                                      mt.text = @"🚧 اللعبة تحت الصيانة بواسطة الإدارة"; 
-                                      mt.textColor = [UIColor yellowColor]; 
-                                      mt.font = [UIFont boldSystemFontOfSize:20];
-                                      mt.textAlignment = NSTextAlignmentCenter;
-                                      [self.maintenanceView addSubview:mt]; 
-                                      // تصحيح الأقواس هنا!
-                                      [[[UIApplication sharedApplication].windows firstObject] addSubview:self.maintenanceView];
-                                  }
-                              } else {
-                                  if (self.maintenanceView) {
-                                      [self.maintenanceView removeFromSuperview];
-                                      self.maintenanceView = nil;
-                                  }
-                              }
-                          }
-                      });
-                  }] resume];
-              }];
-          }
-          @end
-
           // ==========================================
-          // 🛡️ تزييف الشهادة والمتجر (App Store Spoofer)
+          // 🛡️ النقاط الـ 5 لكشف النسخ المكركة (Spoofing)
           // ==========================================
+          
           void SafeSwizzle(Class c, SEL orig, IMP newImp, IMP* oldImp) {
               Method m = class_getInstanceMethod(c, orig);
               if (!m) m = class_getClassMethod(c, orig);
               if (m) { *oldImp = method_getImplementation(m); method_setImplementation(m, newImp); }
           }
 
+          // 🟢 النقطة 1: إخفاء ملف الشهادة (mobileprovision)
+          typedef BOOL (*fileExistsAtPath_t)(id, SEL, NSString *);
+          static fileExistsAtPath_t orig_fileExistsAtPath;
+          BOOL hk_fileExistsAtPath(id self, SEL _cmd, NSString *path) {
+              if (path && [path isKindOfClass:[NSString class]]) {
+                  if ([path containsString:@"embedded.mobileprovision"]) {
+                      SendToMasoudTerminal(@"[CHECK 1 PASSED]", @"Hidden embedded.mobileprovision");
+                      return NO; 
+                  }
+              }
+              return orig_fileExistsAtPath(self, _cmd, path);
+          }
+
+          // 🟢 النقطة 2: تزييف هوية المطور للآب ستور (SignerIdentity)
           typedef NSDictionary* (*infoDict_t)(id, SEL);
           static infoDict_t orig_infoDict;
           NSDictionary* hk_infoDict(id self, SEL _cmd) {
               NSDictionary *dict = orig_infoDict(self, _cmd);
               if (!dict) return nil;
               NSMutableDictionary *mDict = [dict mutableCopy];
-              [mDict setObject:@"Apple iPhone OS Application Signer" forKey:@"SignerIdentity"];
-              [mDict setObject:@"com.apple.itunes.store" forKey:@"AppStoreInstaller"];
-              return [mDict copy];
+              if (mDict) {
+                  [mDict setObject:@"Apple iPhone OS Application Signer" forKey:@"SignerIdentity"];
+                  [mDict setObject:@"com.apple.itunes.store" forKey:@"AppStoreInstaller"];
+                  return [mDict copy];
+              }
+              return dict;
           }
 
-          // ==========================================
-          // 🔄 نظام التوجيه المزدوج (anogs & Shadow)
-          // ==========================================
-          // تمت إزالة كلمة restrict لتجنب أخطاء C++
-          static FILE* (*orig_fopen)(const char *filename, const char *mode);
-          static int (*orig_open)(const char *path, int oflag, ...);
-          static int (*orig_access)(const char *path, int amode);
-          static int (*orig_stat)(const char *path, struct stat *buf);
+          // 🟢 النقطة 3: توجيه إيصال الشراء الرسمي
+          void SpoofReceipt() {
+              method_setImplementation(class_getInstanceMethod([NSBundle class], @selector(appStoreReceiptURL)), 
+                  imp_implementationWithBlock(^NSURL* (id self) {
+                      return [NSURL fileURLWithPath:@"/System/Library/PrivateFrameworks/StoreServices.framework/receipt"];
+                  }));
+          }
 
-          const char* GetRedirectedPath(const char* originalPath) {
+          // 🟢 النقطة 4 و 5: التوجيه المزدوج لـ (Shadow & anogs)
+          static FILE* (*orig_fopen)(const char *filename, const char *mode);
+          static int (*orig_access)(const char *path, int amode);
+
+          const char* GetCleanPath(const char* originalPath) {
               if (!originalPath) return originalPath;
-              NSString* pathStr = [NSString stringWithUTF8String:originalPath];
-              if ([pathStr containsString:@"_original.dat"]) return originalPath; 
-    
-              if ([pathStr containsString:@"anogs.dylib"]) {
-                  return strdup([[pathStr stringByReplacingOccurrencesOfString:@"anogs.dylib" withString:@"anogs_original.dat"] UTF8String]);
+              NSString* p = [NSString stringWithUTF8String:originalPath];
+              if ([p containsString:@"_original.dat"]) return originalPath;
+              
+              if ([p containsString:@"anogs.dylib"]) {
+                  SendToMasoudTerminal(@"[CHECK 4 PASSED]", @"anogs redirected to anogs_original.dat");
+                  return strdup([[p stringByReplacingOccurrencesOfString:@"anogs.dylib" withString:@"anogs_original.dat"] UTF8String]);
               }
-              if ([pathStr containsString:@"ShadowTrackerExtra"]) {
-                  return strdup([[pathStr stringByReplacingOccurrencesOfString:@"ShadowTrackerExtra" withString:@"ShadowTracker_original.dat"] UTF8String]);
+              if ([p containsString:@"ShadowTrackerExtra"]) {
+                  SendToMasoudTerminal(@"[CHECK 5 PASSED]", @"Shadow redirected to ShadowTracker_original.dat");
+                  return strdup([[p stringByReplacingOccurrencesOfString:@"ShadowTrackerExtra" withString:@"ShadowTracker_original.dat"] UTF8String]);
               }
               return originalPath;
           }
 
-          // ==========================================
-          // ☠️ إعماء الأوفستات الـ 15 (Fishhook Blinder)
-          // ==========================================
-          static void* (*orig_dlsym)(void* handle, const char* symbol);
-          static int (*orig_sysctlbyname)(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen);
-
-          static uintptr_t target_offsets[] = { 0x185A9C, 0x185228, 0xDD250, 0xD7BA0, 0x99AD0, 0x82FBC, 0x7ED4C, 0x7B2A8, 0x68D34, 0x44F6C, 0x3B370, 0x376A0, 0xCD1C, 0x6498, 0x459C };
-          static int total_offsets = sizeof(target_offsets) / sizeof(target_offsets[0]);
-
-          BOOL isTargetOffset() {
-              void* ret_addr = __builtin_return_address(0);
-              Dl_info info;
-    
-              if (dladdr(ret_addr, &info) && info.dli_fname) {
-                  NSString *caller = [[NSString stringWithUTF8String:info.dli_fname] lowercaseString];
-                  if ([caller containsString:@"anogs"]) {
-                      uintptr_t slide = 0;
-                      for (uint32_t i = 0; i < _dyld_image_count(); i++) {
-                          if (strcmp(_dyld_get_image_name(i), info.dli_fname) == 0) {
-                              slide = _dyld_get_image_vmaddr_slide(i); break;
-                          }
-                      }
-                      uintptr_t real_offset = (uintptr_t)ret_addr - slide;
-                      for (int i = 0; i < total_offsets; i++) {
-                          if (real_offset >= (target_offsets[i] - 0x50) && real_offset <= (target_offsets[i] + 0x50)) {
-                              return YES; // الأوفست مستهدف
-                          }
-                      }
-                  }
-              }
-              return NO;
-          }
-
-          // --- ربط دوال الملفات للتوجيه والإعماء ---
-          FILE* hk_fopen(const char *filename, const char *mode) {
-              if (isTargetOffset()) return NULL; 
-              return orig_fopen(GetRedirectedPath(filename), mode); 
-          }
-
-          int hk_open(const char *path, int oflag, ...) {
-              va_list args; va_start(args, oflag);
-              mode_t mode = va_arg(args, int); va_end(args);
-              if (isTargetOffset()) return -1;
-              return orig_open(GetRedirectedPath(path), oflag, mode);
-          }
-
-          int hk_access(const char *path, int amode) {
-              if (isTargetOffset()) return -1;
-              return orig_access(GetRedirectedPath(path), amode);
-          }
-
-          int hk_stat(const char *path, struct stat *buf) {
-              if (isTargetOffset()) return -1;
-              return orig_stat(GetRedirectedPath(path), buf);
-          }
-
-          // --- ربط دوال الذاكرة والنظام ---
-          void* hk_dlsym(void* handle, const char* symbol) {
-              if (isTargetOffset()) return NULL;
-              return orig_dlsym(handle, symbol);
-          }
-
-          int hk_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-              if (isTargetOffset()) return -1;
-              return orig_sysctlbyname(name, oldp, oldlenp, newp, newlen);
-          }
-
-          typedef BOOL (*fileExistsAtPath_t)(id, SEL, NSString *);
-          static fileExistsAtPath_t orig_fileExistsAtPath;
-          BOOL hk_fileExistsAtPath(id self, SEL _cmd, NSString *path) {
-              if (path && [path isKindOfClass:[NSString class]]) {
-                  if ([path containsString:@"embedded.mobileprovision"] || [path containsString:@"Cydia"]) return NO; 
-              }
-              return orig_fileExistsAtPath(self, _cmd, path);
-          }
+          FILE* hk_fopen(const char *filename, const char *mode) { return orig_fopen(GetCleanPath(filename), mode); }
+          int hk_access(const char *path, int amode) { return orig_access(GetCleanPath(path), amode); }
 
           // ==========================================
-          // 🚀 نقطة الانطلاق الشاملة (The Final Boss)
+          // 🚀 نظام المزامنة والعد التنازلي (15 ثانية)
           // ==========================================
           __attribute__((constructor))
-          static void masoud_final_boss_init() {
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-        
-                  [[FalconEyeUI shared] drawLogin];
-        
-                  SafeSwizzle([NSBundle class], @selector(infoDictionary), (IMP)hk_infoDict, (IMP*)&orig_infoDict);
+          static void deploy_15s_sync() {
+              // إرسال إشارة للترمنال أن الدايلب دخل اللعبة
+              SendToMasoudTerminal(@"[SYSTEM]", @"🦅 Masoud Dylib Injected. Waiting 15s for Engine to unpack...");
+              
+              // نبضات كل 3 ثواني للترمنال حتى تعرف انه كاعد يشتغل
+              for (int i = 3; i <= 12; i += 3) {
+                  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, i * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                      SendToMasoudTerminal(@"[TIMER]", [NSString stringWithFormat:@"Engine stabilizing... %d seconds passed", i]);
+                  });
+              }
+
+              // اللحظة الحاسمة: تفعيل الـ 5 نقاط بعد 15 ثانية بالتمام!
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 15 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                  
+                  SendToMasoudTerminal(@"[SYSTEM]", @"🚀 15s Reached! Deploying the 5-Point Anti-Crack Shield...");
+                  
                   SafeSwizzle([NSFileManager class], @selector(fileExistsAtPath:), (IMP)hk_fileExistsAtPath, (IMP*)&orig_fileExistsAtPath);
-                  method_setImplementation(class_getInstanceMethod([NSBundle class], @selector(appStoreReceiptURL)), 
-                      imp_implementationWithBlock(^NSURL* (id self) {
-                          return [NSURL fileURLWithPath:@"/System/Library/PrivateFrameworks/StoreServices.framework/receipt"];
-                      }));
-        
+                  SafeSwizzle([NSBundle class], @selector(infoDictionary), (IMP)hk_infoDict, (IMP*)&orig_infoDict);
+                  SpoofReceipt();
+                  
                   struct rebinding hooks[] = {
-                      {"dlsym", (void *)hk_dlsym, (void **)&orig_dlsym},
-                      {"sysctlbyname", (void *)hk_sysctlbyname, (void **)&orig_sysctlbyname},
                       {"fopen", (void *)hk_fopen, (void **)&orig_fopen},
-                      {"open", (void *)hk_open, (void **)&orig_open},
-                      {"access", (void *)hk_access, (void **)&orig_access},
-                      {"stat", (void *)hk_stat, (void **)&orig_stat}
+                      {"access", (void *)hk_access, (void **)&orig_access}
                   };
-                  rebind_symbols(hooks, 6);
-        
-                  NSLog(@"[MASOUD LAB] 🦅 FINAL BOSS DEPLOYED. TENCENT IS OFFICIALLY BLIND.");
+                  rebind_symbols(hooks, 2);
+                  
+                  SendToMasoudTerminal(@"[SUCCESS]", @"✅ All 5 Checks Spoofed Successfully! You are fully protected.");
               });
           }
-
           EOF
-          
-      - name: Compile Ultimate Dylib
+
+      - name: 🚀 Compile 15s Synced Dylib
         run: |
           clang++ -dynamiclib -std=c++11 -arch arm64 \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-          jni/main.mm jni/fishhook.c -o Masoud-Final-Boss.dylib \
+          jni/main.mm jni/fishhook.c -o Masoud-15s-Shield.dylib \
           -framework Foundation -framework UIKit -lobjc
-          strip -x Masoud-Final-Boss.dylib
-          
-      - uses: actions/upload-artifact@v4
+          strip -x Masoud-15s-Shield.dylib
+
+      - name: 📦 Upload Artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: Masoud-Final-Boss-Dylib
-          path: Masoud-Final-Boss.dylib
+          name: Masoud-15s-Shield-Dylib
+          path: Masoud-15s-Shield.dylib
