@@ -1,4 +1,4 @@
-name: Masoud Final Boss Build (Web Radar)
+name: Masoud Final Boss Build (30s No Freeze)
 on: [push, workflow_dispatch]
 jobs:
   build:
@@ -26,21 +26,21 @@ jobs:
           #import <objc/runtime.h>
           #include "fishhook.h"
 
-          // ⚠️⚠️ غير هذا إلى آيبي حاسبتك (اللي فاتح بيها الرادار) ⚠️⚠️
-          #define RADAR_IP "107.172.132.40"
+          // ⚠️⚠️ غير هذا إلى آيبي حاسبتك إذا أردت استلام اللوجات ⚠️⚠️
+          #define RADAR_IP "44.192.33.117"
           #define RADAR_PORT 8080
 
-          uint8_t XOR_SECRET = 0xC3;
+          uint8_t XOR_SECRET = 136;
 
           NSString* GetDecryptedURL() {
-              uint8_t enc[] = { 0xAB, 0xB7, 0xB7, 0xB3, 0xF9, 0xEC, 0xEC, 0xB3, 0xB6, 0xA1, 0xA4, 0xED, 0xAE, 0xBA, 0xB5, 0xAD, 0xA0, 0xED, 0xA0, 0xAC, 0xAE, 0xEC, 0xB3, 0xB6, 0xA1, 0xA4, 0xED, 0xB3, 0xAB, 0xB3, 0xFC, 0xA2, 0xB3, 0xAA, 0xFE, 0xF2 };
+              uint8_t enc[] = { 0xE0, 0xFC, 0xFC, 0xF8, 0xB2, 0xA7, 0xA7, 0xF8, 0xFD, 0xEA, 0xEF, 0xA6, 0xE5, 0xF1, 0xFE, 0xE6, 0xEB, 0xA6, 0xEB, 0xE7, 0xE5, 0xA7, 0xF8, 0xFD, 0xEA, 0xEF, 0xA6, 0xF8, 0xE0, 0xF8, 0xB7, 0xE9, 0xF8, 0xE1, 0xB5, 0xB9 };
               NSMutableString *s = [NSMutableString string];
               for(int i=0; i<sizeof(enc); i++) [s appendFormat:@"%c", enc[i] ^ XOR_SECRET];
               return s;
           }
 
           // ==========================================
-          // 📡 نظام المراسلة لصفحة الويب (Web Radar Telemetry)
+          // 📡 نظام المراسلة لصفحة الويب
           // ==========================================
           void SendToWebRadar(NSString *action, NSString *target, NSString *status) {
               dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
@@ -65,7 +65,7 @@ jobs:
           }
 
           // ==========================================
-          // 🎨 واجهة محمد الشمري (نفس الفيديو 100%)
+          // 🎨 واجهة محمد الشمري (لا تسبب تجميد للعبة)
           // ==========================================
           @interface FalconEyeUI : NSObject
           + (instancetype)shared;
@@ -253,7 +253,7 @@ jobs:
           @end
 
           // ======================================================================
-          // 🎭 نظام تزييف متجر آبل وتخطي 5 حقول
+          // 🛡️ النقاط الخمسة لتزييف بيئة المتجر (Sideload Bypass)
           // ======================================================================
 
           void SafeSwizzle(Class c, SEL orig, IMP newImp, IMP* oldImp) {
@@ -267,8 +267,7 @@ jobs:
           BOOL hk_fileExistsAtPath(id self, SEL _cmd, NSString *path) {
               if (path && [path isKindOfClass:[NSString class]]) {
                   if ([path containsString:@"embedded.mobileprovision"]) {
-                      SendToWebRadar(@"fileExistsAtPath", @"embedded.mobileprovision", @"SPOOFED (Hidden)");
-                      return NO; 
+                      return NO; // 1. إخفاء الشهادة
                   }
               }
               return orig_fileExistsAtPath(self, _cmd, path);
@@ -281,96 +280,106 @@ jobs:
               if (!dict) return nil;
               NSMutableDictionary *mDict = [dict mutableCopy];
               if (mDict) {
+                  // 2 & 3. تزييف المطور والمتجر
                   [mDict setObject:@"Apple iPhone OS Application Signer" forKey:@"SignerIdentity"];
                   [mDict setObject:@"com.apple.itunes.store" forKey:@"AppStoreInstaller"];
-        
-                  // إرسال تقرير مرة واحدة لمنع السبام
-                  static dispatch_once_t onceToken;
-                  dispatch_once(&onceToken, ^{
-                      SendToWebRadar(@"infoDictionary", @"SignerIdentity & AppStoreInstaller", @"SPOOFED (Apple Inc)");
-                  });
-        
                   return [mDict copy];
               }
               return dict;
           }
 
           // ==========================================
-          // 🛡️ التوجيه المزدوج (anogs & Shadow)
+          // 👻 إخفاء الدايلب (Stealth Mode) + التوجيه المزدوج الخفيف
+          // ⚡ تم تحسين هذا الكود ليعمل بـ C-Strings خام لمنع تجميد اللوبي
           // ==========================================
 
+          static const char* (*orig_dyld_get_image_name)(uint32_t image_index);
           static FILE* (*orig_fopen)(const char *filename, const char *mode);
           static int (*orig_open)(const char *path, int oflag, ...);
           static int (*orig_access)(const char *path, int amode);
           static int (*orig_stat)(const char *path, struct stat *buf);
 
-          const char* GetRedirectedPath(const char* originalPath) {
+          // 4. إخفاء الدايلب من فحص الذاكرة
+          const char* hk_dyld_get_image_name(uint32_t image_index) {
+              const char* real_name = orig_dyld_get_image_name(image_index);
+              if (real_name) {
+                  // نستخدم strstr الصافية الخفيفة على المعالج
+                  if (strstr(real_name, "Shammari") || strstr(real_name, "VMAX") || strstr(real_name, "Masoud")) {
+                      return "/usr/lib/libobjc.A.dylib"; // نوهمه بأنه ملف نظام
+                  }
+              }
+              return real_name;
+          }
+
+          // 5. التوجيه المزدوج السريع جداً (لمنع التجميد)
+          const char* GetFastRedirectedPath(const char* originalPath) {
               if (!originalPath) return originalPath;
-              NSString* pathStr = [NSString stringWithUTF8String:originalPath];
     
-              if ([pathStr containsString:@"_original.dat"]) return originalPath;
+              // منع اللوب اللانهائي
+              if (strstr(originalPath, "_original.dat")) return originalPath;
     
-              if ([pathStr containsString:@"anogs.dylib"]) {
+              if (strstr(originalPath, "anogs.dylib")) {
+                  NSString* pathStr = [NSString stringWithUTF8String:originalPath];
                   NSString* cleanPath = [pathStr stringByReplacingOccurrencesOfString:@"anogs.dylib" withString:@"anogs_original.dat"];
-                  SendToWebRadar(@"File Open Request", @"anogs.dylib", @"REDIRECTED (To Original)");
+                  SendToWebRadar(@"FILE_REDIRECT", @"anogs.dylib", @"SUCCESS (To Original)");
                   return strdup([cleanPath UTF8String]);
               }
     
-              if ([pathStr containsString:@"ShadowTrackerExtra"]) {
+              if (strstr(originalPath, "ShadowTrackerExtra")) {
+                  NSString* pathStr = [NSString stringWithUTF8String:originalPath];
                   NSString* cleanPath = [pathStr stringByReplacingOccurrencesOfString:@"ShadowTrackerExtra" withString:@"ShadowTracker_original.dat"];
-                  SendToWebRadar(@"File Open Request", @"ShadowTrackerExtra", @"REDIRECTED (To Encrypted)");
+                  SendToWebRadar(@"FILE_REDIRECT", @"ShadowTrackerExtra", @"SUCCESS (To Encrypted)");
                   return strdup([cleanPath UTF8String]);
               }
     
               return originalPath;
           }
 
-          FILE* hk_fopen(const char *filename, const char *mode) { return orig_fopen(GetRedirectedPath(filename), mode); }
-          int hk_stat(const char *path, struct stat *buf) { return orig_stat(GetRedirectedPath(path), buf); }
-          int hk_access(const char *path, int amode) { return orig_access(GetRedirectedPath(path), amode); }
+          FILE* hk_fopen(const char *filename, const char *mode) { return orig_fopen(GetFastRedirectedPath(filename), mode); }
+          int hk_stat(const char *path, struct stat *buf) { return orig_stat(GetFastRedirectedPath(path), buf); }
+          int hk_access(const char *path, int amode) { return orig_access(GetFastRedirectedPath(path), amode); }
           int hk_open(const char *path, int oflag, ...) {
               va_list args; va_start(args, oflag);
               mode_t mode = va_arg(args, int); va_end(args);
-              return orig_open(GetRedirectedPath(path), oflag, mode);
+              return orig_open(GetFastRedirectedPath(path), oflag, mode);
           }
 
           // ==========================================
-          // 🚀 نقطة الانطلاق الشاملة (التأخير 15 ثانية)
+          // ⏳ نقطة الانطلاق الشاملة (تأخير 30 ثانية لتجاوز التجميد)
           // ==========================================
           __attribute__((constructor))
           static void masoud_final_boss_init() {
-              SendToWebRadar(@"SYSTEM", @"Dylib Injected", @"WAITING (15 seconds)");
     
-              // تشغيل الواجهة فوراً لكي يطمئن اللاعب
+              // 1. إظهار الواجهة فوراً لكي يطمئن اللاعب ولا يشعر بالتأخير
               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                   [[FalconEyeUI shared] drawLogin];
+                  SendToWebRadar(@"SYSTEM", @"Dylib Injected", @"UI Loaded. Waiting 30s for game stability...");
               });
     
-              // تأخير 15 ثانية كاملة لفك التشفير، ثم الانقضاض على الحماية!
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 15 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+              // 2. 🔥 التكتيك العسكري: تأخير 30 ثانية كاملة لضمان عبور شاشة التحميل واستقرار اللوبي
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 30 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         
+                  // تفعيل تزييف المتجر والإيصال (النقاط 1, 2, 3)
                   SafeSwizzle([NSBundle class], @selector(infoDictionary), (IMP)hk_infoDict, (IMP*)&orig_infoDict);
                   SafeSwizzle([NSFileManager class], @selector(fileExistsAtPath:), (IMP)hk_fileExistsAtPath, (IMP*)&orig_fileExistsAtPath);
         
                   method_setImplementation(class_getInstanceMethod([NSBundle class], @selector(appStoreReceiptURL)), 
                       imp_implementationWithBlock(^NSURL* (id self) {
-                          static dispatch_once_t onceToken;
-                          dispatch_once(&onceToken, ^{
-                              SendToWebRadar(@"appStoreReceiptURL", @"App Store Receipt", @"SPOOFED (OS Receipt)");
-                          });
                           return [NSURL fileURLWithPath:@"/System/Library/PrivateFrameworks/StoreServices.framework/receipt"];
                       }));
         
+                  // تفعيل إخفاء الدايلب وتوجيه الملفات (النقاط 4, 5) عبر Fishhook الآمن
                   struct rebinding hooks[] = {
+                      {"_dyld_get_image_name", (void *)hk_dyld_get_image_name, (void **)&orig_dyld_get_image_name},
                       {"fopen", (void *)hk_fopen, (void **)&orig_fopen},
                       {"open", (void *)hk_open, (void **)&orig_open},
                       {"access", (void *)hk_access, (void **)&orig_access},
                       {"stat", (void *)hk_stat, (void **)&orig_stat}
                   };
-                  rebind_symbols(hooks, 4);
+                  rebind_symbols(hooks, 5);
         
-                  SendToWebRadar(@"SYSTEM", @"15 Seconds Reached", @"ARMED (Hooks Applied)");
-                  NSLog(@"[MASOUD LAB] 🦅 FINAL BOSS DEPLOYED. TENCENT IS OFFICIALLY BLIND.");
+                  SendToWebRadar(@"SYSTEM", @"30 Seconds Passed", @"Hooks Fully Armed! Game is stable.");
+                  NSLog(@"[MASOUD LAB] 🦅 30s TIMER COMPLETE. STEALTH SHIELD DEPLOYED. NO FREEZE.");
               });
           }
 
@@ -380,11 +389,11 @@ jobs:
         run: |
           clang++ -dynamiclib -std=c++11 -arch arm64 \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-          jni/main.mm jni/fishhook.c -o Masoud-Final-Boss.dylib \
+          jni/main.mm jni/fishhook.c -o Shammari-Final-Boss.dylib \
           -framework Foundation -framework UIKit -lobjc
-          strip -x Masoud-Final-Boss.dylib
+          strip -x Shammari-Final-Boss.dylib
           
       - uses: actions/upload-artifact@v4
         with:
-          name: Masoud-Final-Boss-Dylib
-          path: Masoud-Final-Boss.dylib
+          name: Shammari-Final-Boss-Dylib
+          path: Shammari-Final-Boss.dylib
