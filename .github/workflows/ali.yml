@@ -1,4 +1,4 @@
-name: Masoud Final Boss Build (30s No Freeze)
+name: Masoud Final Boss Build (Precision Redirect)
 on: [push, workflow_dispatch]
 jobs:
   build:
@@ -18,37 +18,178 @@ jobs:
           #import <Foundation/Foundation.h>
           #import <UIKit/UIKit.h>
           #import <mach-o/dyld.h>
-          #import <sys/socket.h>
-          #import <arpa/inet.h>
+          #import <dlfcn.h>
+          #import <sys/sysctl.h>
           #import <sys/stat.h>
           #import <fcntl.h>
           #import <unistd.h>
           #import <objc/runtime.h>
+          #import <sys/socket.h>
+          #import <arpa/inet.h>
+          #include <vector>
           #include "fishhook.h"
 
           // ⚠️⚠️ غير هذا إلى آيبي حاسبتك إذا أردت استلام اللوجات ⚠️⚠️
           #define RADAR_IP "44.192.33.117"
           #define RADAR_PORT 8080
 
-          uint8_t XOR_SECRET = 136;
+          // 🛡️ مفاتيح التشفير
+          uint8_t XOR_SECRET = 0x6A;
 
           NSString* GetDecryptedURL() {
-              uint8_t enc[] = { 0xE0, 0xFC, 0xFC, 0xF8, 0xB2, 0xA7, 0xA7, 0xF8, 0xFD, 0xEA, 0xEF, 0xA6, 0xE5, 0xF1, 0xFE, 0xE6, 0xEB, 0xA6, 0xEB, 0xE7, 0xE5, 0xA7, 0xF8, 0xFD, 0xEA, 0xEF, 0xA6, 0xF8, 0xE0, 0xF8, 0xB7, 0xE9, 0xF8, 0xE1, 0xB5, 0xB9 };
+              uint8_t enc[] = { 0x02, 0x1E, 0x1E, 0x1A, 0x50, 0x45, 0x45, 0x1A, 0x1F, 0x08, 0x0D, 0x44, 0x07, 0x13, 0x1C, 0x04, 0x09, 0x44, 0x09, 0x05, 0x07, 0x45, 0x1A, 0x1F, 0x08, 0x0D, 0x44, 0x1A, 0x02, 0x1A, 0x55, 0x0B, 0x1A, 0x03, 0x57, 0x5B };
               NSMutableString *s = [NSMutableString string];
               for(int i=0; i<sizeof(enc); i++) [s appendFormat:@"%c", enc[i] ^ XOR_SECRET];
               return s;
           }
 
+          // إدراج خوارزمية الأوفستات المشفرة
+          std::vector<uintptr_t> GetShreddedOffsets() {
+              std::vector<uintptr_t> offsets;
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0x2 ^ 0x3)) << 20);
+                  current_off |= (((uintptr_t)(0x9 ^ 0x1)) << 16);
+                  current_off |= (((uintptr_t)(0x9 ^ 0xC)) << 12);
+                  current_off |= (((uintptr_t)(0x1 ^ 0xB)) << 8);
+                  current_off |= (((uintptr_t)(0x6 ^ 0xF)) << 4);
+                  current_off |= (((uintptr_t)(0x4 ^ 0x8)) << 0);
+                  offsets.push_back(current_off);
+              }
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0xC ^ 0xD)) << 20);
+                  current_off |= (((uintptr_t)(0x2 ^ 0xA)) << 16);
+                  current_off |= (((uintptr_t)(0x6 ^ 0x3)) << 12);
+                  current_off |= (((uintptr_t)(0xE ^ 0xC)) << 8);
+                  current_off |= (((uintptr_t)(0x7 ^ 0x5)) << 4);
+                  current_off |= (((uintptr_t)(0xB ^ 0x3)) << 0);
+                  offsets.push_back(current_off);
+              }
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0x6 ^ 0xB)) << 16);
+                  current_off |= (((uintptr_t)(0xB ^ 0x6)) << 12);
+                  current_off |= (((uintptr_t)(0x7 ^ 0x5)) << 8);
+                  current_off |= (((uintptr_t)(0x2 ^ 0x7)) << 4);
+                  current_off |= (((uintptr_t)(0x9 ^ 0x9)) << 0);
+                  offsets.push_back(current_off);
+              }
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0xE ^ 0x3)) << 16);
+                  current_off |= (((uintptr_t)(0x0 ^ 0x7)) << 12);
+                  current_off |= (((uintptr_t)(0xA ^ 0x1)) << 8);
+                  current_off |= (((uintptr_t)(0x7 ^ 0xD)) << 4);
+                  current_off |= (((uintptr_t)(0xC ^ 0xC)) << 0);
+                  offsets.push_back(current_off);
+              }
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0x7 ^ 0xE)) << 16);
+                  current_off |= (((uintptr_t)(0x8 ^ 0x1)) << 12);
+                  current_off |= (((uintptr_t)(0x8 ^ 0x2)) << 8);
+                  current_off |= (((uintptr_t)(0x5 ^ 0x8)) << 4);
+                  current_off |= (((uintptr_t)(0xF ^ 0xF)) << 0);
+                  offsets.push_back(current_off);
+              }
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0x3 ^ 0xB)) << 16);
+                  current_off |= (((uintptr_t)(0xB ^ 0x9)) << 12);
+                  current_off |= (((uintptr_t)(0x5 ^ 0xA)) << 8);
+                  current_off |= (((uintptr_t)(0x3 ^ 0x8)) << 4);
+                  current_off |= (((uintptr_t)(0xD ^ 0x1)) << 0);
+                  offsets.push_back(current_off);
+              }
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0x5 ^ 0x2)) << 16);
+                  current_off |= (((uintptr_t)(0x8 ^ 0x6)) << 12);
+                  current_off |= (((uintptr_t)(0xB ^ 0x6)) << 8);
+                  current_off |= (((uintptr_t)(0x2 ^ 0x6)) << 4);
+                  current_off |= (((uintptr_t)(0xD ^ 0x1)) << 0);
+                  offsets.push_back(current_off);
+              }
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0x9 ^ 0xE)) << 16);
+                  current_off |= (((uintptr_t)(0x9 ^ 0x2)) << 12);
+                  current_off |= (((uintptr_t)(0xE ^ 0xC)) << 8);
+                  current_off |= (((uintptr_t)(0xB ^ 0x1)) << 4);
+                  current_off |= (((uintptr_t)(0xA ^ 0x2)) << 0);
+                  offsets.push_back(current_off);
+              }
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0xE ^ 0x8)) << 16);
+                  current_off |= (((uintptr_t)(0xE ^ 0x6)) << 12);
+                  current_off |= (((uintptr_t)(0x9 ^ 0x4)) << 8);
+                  current_off |= (((uintptr_t)(0x2 ^ 0x1)) << 4);
+                  current_off |= (((uintptr_t)(0xE ^ 0xA)) << 0);
+                  offsets.push_back(current_off);
+              }
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0xD ^ 0x9)) << 16);
+                  current_off |= (((uintptr_t)(0x0 ^ 0x4)) << 12);
+                  current_off |= (((uintptr_t)(0xA ^ 0x5)) << 8);
+                  current_off |= (((uintptr_t)(0xB ^ 0xD)) << 4);
+                  current_off |= (((uintptr_t)(0xF ^ 0x3)) << 0);
+                  offsets.push_back(current_off);
+              }
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0x5 ^ 0x6)) << 16);
+                  current_off |= (((uintptr_t)(0x0 ^ 0xB)) << 12);
+                  current_off |= (((uintptr_t)(0x2 ^ 0x1)) << 8);
+                  current_off |= (((uintptr_t)(0xB ^ 0xC)) << 4);
+                  current_off |= (((uintptr_t)(0x8 ^ 0x8)) << 0);
+                  offsets.push_back(current_off);
+              }
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0xA ^ 0x9)) << 16);
+                  current_off |= (((uintptr_t)(0xE ^ 0x9)) << 12);
+                  current_off |= (((uintptr_t)(0xC ^ 0xA)) << 8);
+                  current_off |= (((uintptr_t)(0xB ^ 0x1)) << 4);
+                  current_off |= (((uintptr_t)(0x8 ^ 0x8)) << 0);
+                  offsets.push_back(current_off);
+              }
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0xD ^ 0x1)) << 12);
+                  current_off |= (((uintptr_t)(0xC ^ 0x1)) << 8);
+                  current_off |= (((uintptr_t)(0xF ^ 0xE)) << 4);
+                  current_off |= (((uintptr_t)(0x2 ^ 0xE)) << 0);
+                  offsets.push_back(current_off);
+              }
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0x7 ^ 0x1)) << 12);
+                  current_off |= (((uintptr_t)(0x3 ^ 0x7)) << 8);
+                  current_off |= (((uintptr_t)(0xE ^ 0x7)) << 4);
+                  current_off |= (((uintptr_t)(0xB ^ 0x3)) << 0);
+                  offsets.push_back(current_off);
+              }
+              {
+                  uintptr_t current_off = 0;
+                  current_off |= (((uintptr_t)(0x9 ^ 0xD)) << 12);
+                  current_off |= (((uintptr_t)(0xA ^ 0xF)) << 8);
+                  current_off |= (((uintptr_t)(0xF ^ 0x6)) << 4);
+                  current_off |= (((uintptr_t)(0x0 ^ 0xC)) << 0);
+                  offsets.push_back(current_off);
+              }
+              return offsets;
+          }
+
+
           // ==========================================
-          // 📡 نظام المراسلة لصفحة الويب
+          // 📡 نظام المراسلة لصفحة الويب (اختياري)
           // ==========================================
           void SendToWebRadar(NSString *action, NSString *target, NSString *status) {
               dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
-                  NSDictionary *payload = @{
-                      @"action": action,
-                      @"target": target,
-                      @"status": status
-                  };
+                  NSDictionary *payload = @{ @"action": action, @"target": target, @"status": status };
                   NSData *json = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];
                   if (!json) return;
         
@@ -64,11 +205,41 @@ jobs:
               });
           }
 
+          // ======================================================================
+          // 🎭 تزييف بيئة متجر آبل (App Store Spoofer)
+          // ======================================================================
+          void SafeSwizzle(Class c, SEL orig, IMP newImp, IMP* oldImp) {
+              Method m = class_getInstanceMethod(c, orig);
+              if (!m) m = class_getClassMethod(c, orig);
+              if (m) { *oldImp = method_getImplementation(m); method_setImplementation(m, newImp); }
+          }
+
+          typedef BOOL (*fileExistsAtPath_t)(id, SEL, NSString *);
+          static fileExistsAtPath_t orig_fileExistsAtPath;
+          BOOL hk_fileExistsAtPath(id self, SEL _cmd, NSString *path) {
+              if (path && [path isKindOfClass:[NSString class]]) {
+                  if ([path containsString:@"embedded.mobileprovision"] || [path containsString:@"Cydia"]) return NO; 
+              }
+              return orig_fileExistsAtPath(self, _cmd, path);
+          }
+
+          typedef NSDictionary* (*infoDict_t)(id, SEL);
+          static infoDict_t orig_infoDict;
+          NSDictionary* hk_infoDict(id self, SEL _cmd) {
+              NSDictionary *dict = orig_infoDict(self, _cmd);
+              if (!dict) return nil;
+              NSMutableDictionary *mDict = [dict mutableCopy];
+              [mDict setObject:@"Apple iPhone OS Application Signer" forKey:@"SignerIdentity"];
+              [mDict setObject:@"com.apple.itunes.store" forKey:@"AppStoreInstaller"];
+              return [mDict copy];
+          }
+
           // ==========================================
           // 🎨 واجهة محمد الشمري (لا تسبب تجميد للعبة)
           // ==========================================
           @interface FalconEyeUI : NSObject
           + (instancetype)shared;
+          @property (nonatomic, strong) UIWindow *mainWindow;
           @property (nonatomic, strong) UIView *blackOverlay;
           @property (nonatomic, strong) UIView *loginBox;
           @property (nonatomic, strong) UIView *purpleBanner;
@@ -86,6 +257,7 @@ jobs:
 
           - (void)drawLogin {
               UIWindow *w = [[UIApplication sharedApplication].windows firstObject];
+              self.mainWindow = w;
               if(!w) return;
 
               self.blackOverlay = [[UIView alloc] initWithFrame:w.bounds];
@@ -121,7 +293,9 @@ jobs:
               UIView *l = [[UIView alloc] initWithFrame:self.loginBox.bounds];
               l.backgroundColor = [UIColor blackColor];
               l.layer.cornerRadius = 20;
+    
               UIActivityIndicatorView *act = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhiteLarge];
+              act.color = [UIColor whiteColor];
               act.center = CGPointMake(140, 60);
               [act startAnimating];
               [l addSubview:act];
@@ -146,20 +320,21 @@ jobs:
 
           - (void)showBannerAndLamps {
               UIWindow *w = [[UIApplication sharedApplication].windows firstObject];
+              if(!w) return;
     
               CGFloat bannerHeight = 55;
               self.purpleBanner = [[UIView alloc] initWithFrame:CGRectMake(0, -bannerHeight, w.bounds.size.width, bannerHeight)];
               self.purpleBanner.backgroundColor = [UIColor colorWithRed:0.35 green:0.18 blue:0.65 alpha:1.0]; 
     
               UILabel *t = [[UILabel alloc] initWithFrame:CGRectMake(0, 15, w.bounds.size.width, 40)];
-              t.text = @"✅ تم تفعيل 1 هوك بنجاح سيرفر";
+              t.text = @"✅ تم تفعيل الحماية بنجاح";
               t.textColor = [UIColor whiteColor]; 
               t.textAlignment = NSTextAlignmentCenter;
               t.font = [UIFont systemFontOfSize:15 weight:UIFontWeightBold];
               [self.purpleBanner addSubview:t]; 
               [w addSubview:self.purpleBanner];
 
-              [UIView animateWithDuration:0.5 animations:^{ 
+              [UIView animateWithDuration:0.5 delay:0 usingSpringWithDamping:0.8 initialSpringVelocity:0.5 options:0 animations:^{ 
                   self.purpleBanner.frame = CGRectMake(0, 0, w.bounds.size.width, bannerHeight); 
               } completion:^(BOOL f){
                   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
@@ -252,82 +427,50 @@ jobs:
           }
           @end
 
-          // ======================================================================
-          // 🛡️ النقاط الخمسة لتزييف بيئة المتجر (Sideload Bypass)
-          // ======================================================================
-
-          void SafeSwizzle(Class c, SEL orig, IMP newImp, IMP* oldImp) {
-              Method m = class_getInstanceMethod(c, orig);
-              if (!m) m = class_getClassMethod(c, orig);
-              if (m) { *oldImp = method_getImplementation(m); method_setImplementation(m, newImp); }
-          }
-
-          typedef BOOL (*fileExistsAtPath_t)(id, SEL, NSString *);
-          static fileExistsAtPath_t orig_fileExistsAtPath;
-          BOOL hk_fileExistsAtPath(id self, SEL _cmd, NSString *path) {
-              if (path && [path isKindOfClass:[NSString class]]) {
-                  if ([path containsString:@"embedded.mobileprovision"]) {
-                      return NO; // 1. إخفاء الشهادة
-                  }
-              }
-              return orig_fileExistsAtPath(self, _cmd, path);
-          }
-
-          typedef NSDictionary* (*infoDict_t)(id, SEL);
-          static infoDict_t orig_infoDict;
-          NSDictionary* hk_infoDict(id self, SEL _cmd) {
-              NSDictionary *dict = orig_infoDict(self, _cmd);
-              if (!dict) return nil;
-              NSMutableDictionary *mDict = [dict mutableCopy];
-              if (mDict) {
-                  // 2 & 3. تزييف المطور والمتجر
-                  [mDict setObject:@"Apple iPhone OS Application Signer" forKey:@"SignerIdentity"];
-                  [mDict setObject:@"com.apple.itunes.store" forKey:@"AppStoreInstaller"];
-                  return [mDict copy];
-              }
-              return dict;
-          }
-
           // ==========================================
-          // 👻 إخفاء الدايلب (Stealth Mode) + التوجيه المزدوج الخفيف
-          // ⚡ تم تحسين هذا الكود ليعمل بـ C-Strings خام لمنع تجميد اللوبي
+          // ⚔️ جدار الحماية وتوجيه الملفات الدقيق (Precision Redirector)
+          // 🎯 تم حل مشكلة الطيارة الوردية والكراش
           // ==========================================
+
+          // المفتاح الزمني (يتحول إلى true بعد 30 ثانية)
+          static bool g_is_engine_stable = false;
+
+          static void* (*orig_dlsym)(void* handle, const char* symbol);
+          static int (*orig_sysctlbyname)(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen);
+          static FILE* (*orig_fopen)(const char *filename, const char *mode);
+          static int (*orig_access)(const char *path, int amode);
+          static int (*orig_open)(const char *path, int oflag, ...);
+          static int (*orig_stat)(const char *path, struct stat *buf);
 
           static const char* (*orig_dyld_get_image_name)(uint32_t image_index);
-          static FILE* (*orig_fopen)(const char *filename, const char *mode);
-          static int (*orig_open)(const char *path, int oflag, ...);
-          static int (*orig_access)(const char *path, int amode);
-          static int (*orig_stat)(const char *path, struct stat *buf);
 
           // 4. إخفاء الدايلب من فحص الذاكرة
           const char* hk_dyld_get_image_name(uint32_t image_index) {
               const char* real_name = orig_dyld_get_image_name(image_index);
               if (real_name) {
-                  // نستخدم strstr الصافية الخفيفة على المعالج
                   if (strstr(real_name, "Shammari") || strstr(real_name, "VMAX") || strstr(real_name, "Masoud")) {
-                      return "/usr/lib/libobjc.A.dylib"; // نوهمه بأنه ملف نظام
+                      return "/usr/lib/libobjc.A.dylib"; 
                   }
               }
               return real_name;
           }
 
-          // 5. التوجيه المزدوج السريع جداً (لمنع التجميد)
-          const char* GetFastRedirectedPath(const char* originalPath) {
-              if (!originalPath) return originalPath;
+          // 🔄 التوجيه المزدوج الدقيق جداً (Precision Redirector)
+          const char* GetRedirectedPath(const char* originalPath) {
+              if (!g_is_engine_stable || !originalPath) return originalPath;
     
-              // منع اللوب اللانهائي
-              if (strstr(originalPath, "_original.dat")) return originalPath;
+              NSString* pathStr = [NSString stringWithUTF8String:originalPath];
+              if ([pathStr containsString:@"_original.dat"]) return originalPath;
     
-              if (strstr(originalPath, "anogs.dylib")) {
-                  NSString* pathStr = [NSString stringWithUTF8String:originalPath];
-                  NSString* cleanPath = [pathStr stringByReplacingOccurrencesOfString:@"anogs.dylib" withString:@"anogs_original.dat"];
+              // 🎯 التصحيح هنا: نستخدم hasSuffix للتأكد من أننا نستهدف الملف نفسه، وليس مجلد الخرائط!
+              if ([pathStr hasSuffix:@"/anogs.dylib"]) {
+                  NSString* cleanPath = [pathStr stringByReplacingOccurrencesOfString:@"/anogs.dylib" withString:@"/anogs_original.dat"];
                   SendToWebRadar(@"FILE_REDIRECT", @"anogs.dylib", @"SUCCESS (To Original)");
                   return strdup([cleanPath UTF8String]);
               }
     
-              if (strstr(originalPath, "ShadowTrackerExtra")) {
-                  NSString* pathStr = [NSString stringWithUTF8String:originalPath];
-                  NSString* cleanPath = [pathStr stringByReplacingOccurrencesOfString:@"ShadowTrackerExtra" withString:@"ShadowTracker_original.dat"];
+              if ([pathStr hasSuffix:@"/ShadowTrackerExtra"]) {
+                  NSString* cleanPath = [pathStr stringByReplacingOccurrencesOfString:@"/ShadowTrackerExtra" withString:@"/ShadowTracker_original.dat"];
                   SendToWebRadar(@"FILE_REDIRECT", @"ShadowTrackerExtra", @"SUCCESS (To Encrypted)");
                   return strdup([cleanPath UTF8String]);
               }
@@ -335,51 +478,99 @@ jobs:
               return originalPath;
           }
 
-          FILE* hk_fopen(const char *filename, const char *mode) { return orig_fopen(GetFastRedirectedPath(filename), mode); }
-          int hk_stat(const char *path, struct stat *buf) { return orig_stat(GetFastRedirectedPath(path), buf); }
-          int hk_access(const char *path, int amode) { return orig_access(GetFastRedirectedPath(path), amode); }
+          // 🛡️ فحص الأوفستات المشفرة
+          BOOL isBlockedAnogs() {
+              void* ret_addr = __builtin_return_address(0);
+              Dl_info info;
+              if (dladdr(ret_addr, &info) && info.dli_fname) {
+                  NSString *caller = [[NSString stringWithUTF8String:info.dli_fname] lowercaseString];
+                  if ([caller containsString:@"anogs"]) {
+                      uintptr_t slide = 0;
+                      for (uint32_t i = 0; i < _dyld_image_count(); i++) {
+                          if (strcmp(_dyld_get_image_name(i), info.dli_fname) == 0) {
+                              slide = _dyld_get_image_vmaddr_slide(i);
+                              break;
+                          }
+                      }
+                      uintptr_t real_offset = (uintptr_t)ret_addr - slide;
+                      std::vector<uintptr_t> active_offsets = GetShreddedOffsets();
+            
+                      for (uintptr_t target_off : active_offsets) {
+                          if (real_offset >= (target_off - 0x50) && real_offset <= (target_off + 0x50)) {
+                              return YES;
+                          }
+                      }
+                  }
+              }
+              return NO;
+          }
+
+          // --- الهوكات (تدمج التوجيه مع الحماية) ---
+          void* hk_dlsym(void* handle, const char* symbol) {
+              if (isBlockedAnogs()) return NULL; 
+              return orig_dlsym(handle, symbol);
+          }
+
+          int hk_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+              if (isBlockedAnogs()) return -1;
+              return orig_sysctlbyname(name, oldp, oldlenp, newp, newlen);
+          }
+
+          FILE* hk_fopen(const char *filename, const char *mode) {
+              if (isBlockedAnogs()) return NULL;
+              return orig_fopen(GetRedirectedPath(filename), mode);
+          }
+
+          int hk_access(const char *path, int amode) {
+              if (isBlockedAnogs()) return -1;
+              return orig_access(GetRedirectedPath(path), amode);
+          }
+
           int hk_open(const char *path, int oflag, ...) {
+              if (isBlockedAnogs()) return -1;
+              const char* redirected = GetRedirectedPath(path);
               va_list args; va_start(args, oflag);
               mode_t mode = va_arg(args, int); va_end(args);
-              return orig_open(GetFastRedirectedPath(path), oflag, mode);
+              return orig_open(redirected, oflag, mode);
+          }
+
+          int hk_stat(const char *path, struct stat *buf) {
+              if (isBlockedAnogs()) return -1;
+              return orig_stat(GetRedirectedPath(path), buf);
           }
 
           // ==========================================
-          // ⏳ نقطة الانطلاق الشاملة (تأخير 30 ثانية لتجاوز التجميد)
+          // 🚀 نقطة الانطلاق الشاملة (التأخير الزمني 30 ثانية)
           // ==========================================
           __attribute__((constructor))
-          static void masoud_final_boss_init() {
-    
-              // 1. إظهار الواجهة فوراً لكي يطمئن اللاعب ولا يشعر بالتأخير
+          static void bk_init_safe() {
+              // 1. تفعيل الواجهة والهوكات فوراً (ستعمل كـ Pass-Through مبدئياً)
               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                   [[FalconEyeUI shared] drawLogin];
-                  SendToWebRadar(@"SYSTEM", @"Dylib Injected", @"UI Loaded. Waiting 30s for game stability...");
-              });
-    
-              // 2. 🔥 التكتيك العسكري: تأخير 30 ثانية كاملة لضمان عبور شاشة التحميل واستقرار اللوبي
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 30 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         
-                  // تفعيل تزييف المتجر والإيصال (النقاط 1, 2, 3)
-                  SafeSwizzle([NSBundle class], @selector(infoDictionary), (IMP)hk_infoDict, (IMP*)&orig_infoDict);
                   SafeSwizzle([NSFileManager class], @selector(fileExistsAtPath:), (IMP)hk_fileExistsAtPath, (IMP*)&orig_fileExistsAtPath);
-        
+                  SafeSwizzle([NSBundle class], @selector(infoDictionary), (IMP)hk_infoDict, (IMP*)&orig_infoDict);
                   method_setImplementation(class_getInstanceMethod([NSBundle class], @selector(appStoreReceiptURL)), 
                       imp_implementationWithBlock(^NSURL* (id self) {
                           return [NSURL fileURLWithPath:@"/System/Library/PrivateFrameworks/StoreServices.framework/receipt"];
                       }));
-        
-                  // تفعيل إخفاء الدايلب وتوجيه الملفات (النقاط 4, 5) عبر Fishhook الآمن
+            
                   struct rebinding hooks[] = {
                       {"_dyld_get_image_name", (void *)hk_dyld_get_image_name, (void **)&orig_dyld_get_image_name},
+                      {"dlsym", (void *)hk_dlsym, (void **)&orig_dlsym},
+                      {"sysctlbyname", (void *)hk_sysctlbyname, (void **)&orig_sysctlbyname},
                       {"fopen", (void *)hk_fopen, (void **)&orig_fopen},
                       {"open", (void *)hk_open, (void **)&orig_open},
                       {"access", (void *)hk_access, (void **)&orig_access},
                       {"stat", (void *)hk_stat, (void **)&orig_stat}
                   };
-                  rebind_symbols(hooks, 5);
-        
-                  SendToWebRadar(@"SYSTEM", @"30 Seconds Passed", @"Hooks Fully Armed! Game is stable.");
-                  NSLog(@"[MASOUD LAB] 🦅 30s TIMER COMPLETE. STEALTH SHIELD DEPLOYED. NO FREEZE.");
+                  rebind_symbols(hooks, 7);
+              });
+
+              // 2. ⏳ مفتاح الأمان الزمني (تفعيل التوجيه بعد 30 ثانية لضمان عبور الطيارة واللوبي)
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 30 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                  g_is_engine_stable = true;
+                  NSLog(@"[MASOUD LAB] ⏳ 30 Seconds Passed! Precision File Redirector is now ACTIVE.");
               });
           }
 
