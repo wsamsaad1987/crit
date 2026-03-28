@@ -6,13 +6,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Download Fishhook (Non-JB Safe Engine)
+      - name: Download Fishhook
         run: |
           mkdir -p jni
           curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.c -o jni/fishhook.c
           curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.h -o jni/fishhook.h
           
-      - name: Generate Master Payload (Main.mm)
+      - name: Generate Master Payload
         run: |
           cat <<'EOF' > jni/main.mm
           #import <Foundation/Foundation.h>
@@ -22,13 +22,14 @@ jobs:
           #import <sys/sysctl.h>
           #import <sys/stat.h>
           #import <objc/runtime.h>
+          #include <stdarg.h>
           #include "fishhook.h"
 
           // 🛡️ مفاتيح التشفير
-          uint8_t XOR_SECRET = 0x4D;
+          uint8_t XOR_SECRET = 0x7D;
 
           NSString* GetDecryptedURL() {
-              uint8_t enc[] = { 0x25, 0x39, 0x39, 0x3D, 0x77, 0x62, 0x62, 0x3D, 0x38, 0x2F, 0x2A, 0x63, 0x20, 0x34, 0x3B, 0x23, 0x2E, 0x63, 0x2E, 0x22, 0x20, 0x62, 0x3D, 0x38, 0x2F, 0x2A, 0x63, 0x3D, 0x25, 0x3D, 0x72, 0x2C, 0x3D, 0x24, 0x70, 0x7C };
+              uint8_t enc[] = { 0x15, 0x09, 0x09, 0x0D, 0x47, 0x52, 0x52, 0x0D, 0x08, 0x1F, 0x1A, 0x53, 0x10, 0x04, 0x0B, 0x13, 0x1E, 0x53, 0x1E, 0x12, 0x10, 0x52, 0x0D, 0x08, 0x1F, 0x1A, 0x53, 0x0D, 0x15, 0x0D, 0x42, 0x1C, 0x0D, 0x14, 0x40, 0x4C };
               NSMutableString *s = [NSMutableString string];
               for(int i=0; i<sizeof(enc); i++) [s appendFormat:@"%c", enc[i] ^ XOR_SECRET];
               return s;
@@ -39,6 +40,7 @@ jobs:
           // ==========================================
           @interface FalconEyeUI : NSObject
           + (instancetype)shared;
+          @property (nonatomic, strong) UIWindow *mainWindow;
           @property (nonatomic, strong) UIView *blackOverlay;
           @property (nonatomic, strong) UIView *loginBox;
           @property (nonatomic, strong) UIView *purpleBanner;
@@ -55,10 +57,12 @@ jobs:
           }
 
           - (void)drawLogin {
-              self.mainWindow = [[UIApplication sharedApplication].windows firstObject];
-              if(!self.mainWindow) return;
+              // استخدمنا الأكواد الحديثة بدل keyWindow لمنع التحذيرات
+              UIWindow *w = [[UIApplication sharedApplication].windows firstObject];
+              self.mainWindow = w;
+              if(!w) return;
 
-              self.blackOverlay = [[UIView alloc] initWithFrame:self.mainWindow.bounds];
+              self.blackOverlay = [[UIView alloc] initWithFrame:w.bounds];
               self.blackOverlay.backgroundColor = [UIColor colorWithWhite:0 alpha:0.9];
               [w addSubview:self.blackOverlay];
 
@@ -91,7 +95,10 @@ jobs:
               UIView *l = [[UIView alloc] initWithFrame:self.loginBox.bounds];
               l.backgroundColor = [UIColor blackColor];
               l.layer.cornerRadius = 20;
+    
+              // استخدام UIActivityIndicatorViewStyleLarge (الحديث)
               UIActivityIndicatorView *act = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleLarge];
+              act.color = [UIColor whiteColor];
               act.center = CGPointMake(140, 60);
               [act startAnimating];
               [l addSubview:act];
@@ -116,6 +123,7 @@ jobs:
 
           - (void)showBannerAndLamps {
               UIWindow *w = [[UIApplication sharedApplication].windows firstObject];
+              if(!w) return;
     
               CGFloat bannerHeight = 55;
               // الشريط البنفسجي الملاصق للسقف
@@ -208,7 +216,8 @@ jobs:
                                       mt.font = [UIFont boldSystemFontOfSize:20];
                                       mt.textAlignment = NSTextAlignmentCenter;
                                       [self.maintenanceView addSubview:mt]; 
-                                      [[[[UIApplication sharedApplication].windows firstObject] addSubview:self.maintenanceView];
+                                      // تصحيح الأقواس هنا!
+                                      [[[UIApplication sharedApplication].windows firstObject] addSubview:self.maintenanceView];
                                   }
                               } else {
                                   if (self.maintenanceView) {
@@ -246,6 +255,7 @@ jobs:
           // ==========================================
           // 🔄 نظام التوجيه المزدوج (anogs & Shadow)
           // ==========================================
+          // تمت إزالة كلمة restrict لتجنب أخطاء C++
           static FILE* (*orig_fopen)(const char *filename, const char *mode);
           static int (*orig_open)(const char *path, int oflag, ...);
           static int (*orig_access)(const char *path, int amode);
@@ -254,7 +264,7 @@ jobs:
           const char* GetRedirectedPath(const char* originalPath) {
               if (!originalPath) return originalPath;
               NSString* pathStr = [NSString stringWithUTF8String:originalPath];
-              if ([pathStr containsString:@"_original.dat"]) return originalPath; // منع الدوران
+              if ([pathStr containsString:@"_original.dat"]) return originalPath; 
     
               if ([pathStr containsString:@"anogs.dylib"]) {
                   return strdup([[pathStr stringByReplacingOccurrencesOfString:@"anogs.dylib" withString:@"anogs_original.dat"] UTF8String]);
@@ -300,8 +310,8 @@ jobs:
 
           // --- ربط دوال الملفات للتوجيه والإعماء ---
           FILE* hk_fopen(const char *filename, const char *mode) {
-              if (isTargetOffset()) return NULL; // إعماء الأوفستات
-              return orig_fopen(GetRedirectedPath(filename), mode); // توجيه الباقين
+              if (isTargetOffset()) return NULL; 
+              return orig_fopen(GetRedirectedPath(filename), mode); 
           }
 
           int hk_open(const char *path, int oflag, ...) {
@@ -336,7 +346,6 @@ jobs:
           static fileExistsAtPath_t orig_fileExistsAtPath;
           BOOL hk_fileExistsAtPath(id self, SEL _cmd, NSString *path) {
               if (path && [path isKindOfClass:[NSString class]]) {
-                  // إخفاء ملف الشهادة لبيئة الآب ستور الوهمية
                   if ([path containsString:@"embedded.mobileprovision"] || [path containsString:@"Cydia"]) return NO; 
               }
               return orig_fileExistsAtPath(self, _cmd, path);
@@ -349,10 +358,8 @@ jobs:
           static void masoud_final_boss_init() {
               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         
-                  // 1. رسم الواجهة الفخمة
                   [[FalconEyeUI shared] drawLogin];
         
-                  // 2. تفعيل تزييف المتجر والشهادة
                   SafeSwizzle([NSBundle class], @selector(infoDictionary), (IMP)hk_infoDict, (IMP*)&orig_infoDict);
                   SafeSwizzle([NSFileManager class], @selector(fileExistsAtPath:), (IMP)hk_fileExistsAtPath, (IMP*)&orig_fileExistsAtPath);
                   method_setImplementation(class_getInstanceMethod([NSBundle class], @selector(appStoreReceiptURL)), 
@@ -360,7 +367,6 @@ jobs:
                           return [NSURL fileURLWithPath:@"/System/Library/PrivateFrameworks/StoreServices.framework/receipt"];
                       }));
         
-                  // 3. تفعيل جدار الحماية، إعماء الأوفستات، وتوجيه الملفات عبر Fishhook
                   struct rebinding hooks[] = {
                       {"dlsym", (void *)hk_dlsym, (void **)&orig_dlsym},
                       {"sysctlbyname", (void *)hk_sysctlbyname, (void **)&orig_sysctlbyname},
