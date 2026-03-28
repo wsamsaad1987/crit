@@ -27,7 +27,7 @@ jobs:
           #include "fishhook.h"
 
           // ⚠️⚠️ غير هذا إلى آيبي حاسبتك (اللي فاتح بيها الرادار) ⚠️⚠️
-          #define RADAR_IP "44.192.33.117"
+          #define RADAR_IP "107.172.132.40"
           #define RADAR_PORT 8080
 
           uint8_t XOR_SECRET = 0xC3;
