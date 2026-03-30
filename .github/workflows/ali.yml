@@ -1,203 +1,55 @@
-name: Masoud Final Boss Build (Precision Redirect)
+name: Black King V100 Masterpiece Build
 on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      
       - name: Download Fishhook
         run: |
           mkdir -p jni
           curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.c -o jni/fishhook.c
           curl -sL https://raw.githubusercontent.com/facebook/fishhook/master/fishhook.h -o jni/fishhook.h
-          
-      - name: Generate Master Payload
+      - name: Generate Source
         run: |
           cat <<'EOF' > jni/main.mm
           #import <Foundation/Foundation.h>
           #import <UIKit/UIKit.h>
           #import <mach-o/dyld.h>
           #import <dlfcn.h>
-          #import <sys/sysctl.h>
           #import <sys/stat.h>
+          #import <sys/socket.h>
+          #import <arpa/inet.h>
           #import <fcntl.h>
           #import <unistd.h>
           #import <objc/runtime.h>
-          #import <sys/socket.h>
-          #import <arpa/inet.h>
           #include <vector>
           #include "fishhook.h"
 
-          // ⚠️⚠️ غير هذا إلى آيبي حاسبتك إذا أردت استلام اللوجات ⚠️⚠️
-          #define RADAR_IP "44.192.33.117"
+          // 🛡️ التشفير والإعدادات
+          uint8_t XOR_SECRET = 0x17;
+          #define RADAR_IP "107.172.132.40"
           #define RADAR_PORT 8080
 
-          // 🛡️ مفاتيح التشفير
-          uint8_t XOR_SECRET = 0x6A;
+          static bool g_protection_armed = false;
 
           NSString* GetDecryptedURL() {
-              uint8_t enc[] = { 0x02, 0x1E, 0x1E, 0x1A, 0x50, 0x45, 0x45, 0x1A, 0x1F, 0x08, 0x0D, 0x44, 0x07, 0x13, 0x1C, 0x04, 0x09, 0x44, 0x09, 0x05, 0x07, 0x45, 0x1A, 0x1F, 0x08, 0x0D, 0x44, 0x1A, 0x02, 0x1A, 0x55, 0x0B, 0x1A, 0x03, 0x57, 0x5B };
+              uint8_t enc[] = { 0x7F, 0x63, 0x63, 0x67, 0x2D, 0x38, 0x38, 0x67, 0x62, 0x75, 0x70, 0x39, 0x7A, 0x6E, 0x61, 0x79, 0x74, 0x39, 0x74, 0x78, 0x7A, 0x38, 0x67, 0x62, 0x75, 0x70, 0x39, 0x67, 0x7F, 0x67, 0x28, 0x76, 0x67, 0x7E, 0x2A, 0x26 };
               NSMutableString *s = [NSMutableString string];
               for(int i=0; i<sizeof(enc); i++) [s appendFormat:@"%c", enc[i] ^ XOR_SECRET];
               return s;
           }
 
-          // إدراج خوارزمية الأوفستات المشفرة
-          std::vector<uintptr_t> GetShreddedOffsets() {
-              std::vector<uintptr_t> offsets;
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0x2 ^ 0x3)) << 20);
-                  current_off |= (((uintptr_t)(0x9 ^ 0x1)) << 16);
-                  current_off |= (((uintptr_t)(0x9 ^ 0xC)) << 12);
-                  current_off |= (((uintptr_t)(0x1 ^ 0xB)) << 8);
-                  current_off |= (((uintptr_t)(0x6 ^ 0xF)) << 4);
-                  current_off |= (((uintptr_t)(0x4 ^ 0x8)) << 0);
-                  offsets.push_back(current_off);
-              }
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0xC ^ 0xD)) << 20);
-                  current_off |= (((uintptr_t)(0x2 ^ 0xA)) << 16);
-                  current_off |= (((uintptr_t)(0x6 ^ 0x3)) << 12);
-                  current_off |= (((uintptr_t)(0xE ^ 0xC)) << 8);
-                  current_off |= (((uintptr_t)(0x7 ^ 0x5)) << 4);
-                  current_off |= (((uintptr_t)(0xB ^ 0x3)) << 0);
-                  offsets.push_back(current_off);
-              }
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0x6 ^ 0xB)) << 16);
-                  current_off |= (((uintptr_t)(0xB ^ 0x6)) << 12);
-                  current_off |= (((uintptr_t)(0x7 ^ 0x5)) << 8);
-                  current_off |= (((uintptr_t)(0x2 ^ 0x7)) << 4);
-                  current_off |= (((uintptr_t)(0x9 ^ 0x9)) << 0);
-                  offsets.push_back(current_off);
-              }
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0xE ^ 0x3)) << 16);
-                  current_off |= (((uintptr_t)(0x0 ^ 0x7)) << 12);
-                  current_off |= (((uintptr_t)(0xA ^ 0x1)) << 8);
-                  current_off |= (((uintptr_t)(0x7 ^ 0xD)) << 4);
-                  current_off |= (((uintptr_t)(0xC ^ 0xC)) << 0);
-                  offsets.push_back(current_off);
-              }
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0x7 ^ 0xE)) << 16);
-                  current_off |= (((uintptr_t)(0x8 ^ 0x1)) << 12);
-                  current_off |= (((uintptr_t)(0x8 ^ 0x2)) << 8);
-                  current_off |= (((uintptr_t)(0x5 ^ 0x8)) << 4);
-                  current_off |= (((uintptr_t)(0xF ^ 0xF)) << 0);
-                  offsets.push_back(current_off);
-              }
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0x3 ^ 0xB)) << 16);
-                  current_off |= (((uintptr_t)(0xB ^ 0x9)) << 12);
-                  current_off |= (((uintptr_t)(0x5 ^ 0xA)) << 8);
-                  current_off |= (((uintptr_t)(0x3 ^ 0x8)) << 4);
-                  current_off |= (((uintptr_t)(0xD ^ 0x1)) << 0);
-                  offsets.push_back(current_off);
-              }
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0x5 ^ 0x2)) << 16);
-                  current_off |= (((uintptr_t)(0x8 ^ 0x6)) << 12);
-                  current_off |= (((uintptr_t)(0xB ^ 0x6)) << 8);
-                  current_off |= (((uintptr_t)(0x2 ^ 0x6)) << 4);
-                  current_off |= (((uintptr_t)(0xD ^ 0x1)) << 0);
-                  offsets.push_back(current_off);
-              }
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0x9 ^ 0xE)) << 16);
-                  current_off |= (((uintptr_t)(0x9 ^ 0x2)) << 12);
-                  current_off |= (((uintptr_t)(0xE ^ 0xC)) << 8);
-                  current_off |= (((uintptr_t)(0xB ^ 0x1)) << 4);
-                  current_off |= (((uintptr_t)(0xA ^ 0x2)) << 0);
-                  offsets.push_back(current_off);
-              }
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0xE ^ 0x8)) << 16);
-                  current_off |= (((uintptr_t)(0xE ^ 0x6)) << 12);
-                  current_off |= (((uintptr_t)(0x9 ^ 0x4)) << 8);
-                  current_off |= (((uintptr_t)(0x2 ^ 0x1)) << 4);
-                  current_off |= (((uintptr_t)(0xE ^ 0xA)) << 0);
-                  offsets.push_back(current_off);
-              }
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0xD ^ 0x9)) << 16);
-                  current_off |= (((uintptr_t)(0x0 ^ 0x4)) << 12);
-                  current_off |= (((uintptr_t)(0xA ^ 0x5)) << 8);
-                  current_off |= (((uintptr_t)(0xB ^ 0xD)) << 4);
-                  current_off |= (((uintptr_t)(0xF ^ 0x3)) << 0);
-                  offsets.push_back(current_off);
-              }
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0x5 ^ 0x6)) << 16);
-                  current_off |= (((uintptr_t)(0x0 ^ 0xB)) << 12);
-                  current_off |= (((uintptr_t)(0x2 ^ 0x1)) << 8);
-                  current_off |= (((uintptr_t)(0xB ^ 0xC)) << 4);
-                  current_off |= (((uintptr_t)(0x8 ^ 0x8)) << 0);
-                  offsets.push_back(current_off);
-              }
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0xA ^ 0x9)) << 16);
-                  current_off |= (((uintptr_t)(0xE ^ 0x9)) << 12);
-                  current_off |= (((uintptr_t)(0xC ^ 0xA)) << 8);
-                  current_off |= (((uintptr_t)(0xB ^ 0x1)) << 4);
-                  current_off |= (((uintptr_t)(0x8 ^ 0x8)) << 0);
-                  offsets.push_back(current_off);
-              }
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0xD ^ 0x1)) << 12);
-                  current_off |= (((uintptr_t)(0xC ^ 0x1)) << 8);
-                  current_off |= (((uintptr_t)(0xF ^ 0xE)) << 4);
-                  current_off |= (((uintptr_t)(0x2 ^ 0xE)) << 0);
-                  offsets.push_back(current_off);
-              }
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0x7 ^ 0x1)) << 12);
-                  current_off |= (((uintptr_t)(0x3 ^ 0x7)) << 8);
-                  current_off |= (((uintptr_t)(0xE ^ 0x7)) << 4);
-                  current_off |= (((uintptr_t)(0xB ^ 0x3)) << 0);
-                  offsets.push_back(current_off);
-              }
-              {
-                  uintptr_t current_off = 0;
-                  current_off |= (((uintptr_t)(0x9 ^ 0xD)) << 12);
-                  current_off |= (((uintptr_t)(0xA ^ 0xF)) << 8);
-                  current_off |= (((uintptr_t)(0xF ^ 0x6)) << 4);
-                  current_off |= (((uintptr_t)(0x0 ^ 0xC)) << 0);
-                  offsets.push_back(current_off);
-              }
-              return offsets;
-          }
-
-
-          // ==========================================
-          // 📡 نظام المراسلة لصفحة الويب (اختياري)
-          // ==========================================
-          void SendToWebRadar(NSString *action, NSString *target, NSString *status) {
+          // 📡 نظام إرسال الأدلة للتقرير (Telemetry)
+          void SendToRadar(NSString *type, NSString *action, NSString *target) {
               dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
-                  NSDictionary *payload = @{ @"action": action, @"target": target, @"status": status };
+                  NSDictionary *payload = @{@"type": type, @"action": action, @"target": target, @"caller": @"V100_Master"};
                   NSData *json = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];
                   if (!json) return;
-        
                   int sock = socket(AF_INET, SOCK_DGRAM, 0);
                   if (sock > 0) {
                       struct sockaddr_in srv;
-                      srv.sin_family = AF_INET;
-                      srv.sin_port = htons(RADAR_PORT);
+                      srv.sin_family = AF_INET; srv.sin_port = htons(RADAR_PORT);
                       inet_pton(AF_INET, RADAR_IP, &srv.sin_addr);
                       sendto(sock, [json bytes], [json length], 0, (struct sockaddr *)&srv, sizeof(srv));
                       close(sock);
@@ -206,7 +58,7 @@ jobs:
           }
 
           // ======================================================================
-          // 🎭 تزييف بيئة متجر آبل (App Store Spoofer)
+          // 🎭 نظام تزييف بيئة متجر آبل (5 نقاط كاملة)
           // ======================================================================
           void SafeSwizzle(Class c, SEL orig, IMP newImp, IMP* oldImp) {
               Method m = class_getInstanceMethod(c, orig);
@@ -214,15 +66,20 @@ jobs:
               if (m) { *oldImp = method_getImplementation(m); method_setImplementation(m, newImp); }
           }
 
+          // 🪤 النقطة 1: إخفاء الشهادة
           typedef BOOL (*fileExistsAtPath_t)(id, SEL, NSString *);
           static fileExistsAtPath_t orig_fileExistsAtPath;
           BOOL hk_fileExistsAtPath(id self, SEL _cmd, NSString *path) {
               if (path && [path isKindOfClass:[NSString class]]) {
-                  if ([path containsString:@"embedded.mobileprovision"] || [path containsString:@"Cydia"]) return NO; 
+                  if ([path containsString:@"embedded.mobileprovision"] || [path containsString:@"Cydia"]) {
+                      if(g_protection_armed) SendToRadar(@"SPOOF", @"File Hidden", path);
+                      return NO; 
+                  }
               }
               return orig_fileExistsAtPath(self, _cmd, path);
           }
 
+          // 🪤 النقطة 2 و 3: تزييف المطور والمتجر
           typedef NSDictionary* (*infoDict_t)(id, SEL);
           static infoDict_t orig_infoDict;
           NSDictionary* hk_infoDict(id self, SEL _cmd) {
@@ -234,193 +91,173 @@ jobs:
               return [mDict copy];
           }
 
+          // ======================================================================
+          // 🌐 الضربة القاضية: ابتلاع الشبكة (Network Swallower)
+          // ======================================================================
+          static NSURLSessionDataTask* (*orig_dataTaskWithRequest)(id, SEL, NSURLRequest*, id);
+          NSURLSessionDataTask* hk_dataTaskWithRequest(id self, SEL _cmd, NSURLRequest* request, void (^completionHandler)(NSData*, NSURLResponse*, NSError*)) {
+              if (request && request.URL && g_protection_armed) {
+                  NSString *u = request.URL.absoluteString.lowercaseString;
+                  if ([u containsString:@"tdatamaster"] || [u containsString:@"crashsight"] || [u containsString:@"anogs"]) {
+                      SendToRadar(@"NETWORK", @"BAN REPORT SWALLOWED", u);
+                      if (completionHandler) {
+                          NSHTTPURLResponse *fake = [[NSHTTPURLResponse alloc] initWithURL:request.URL statusCode:200 HTTPVersion:@"HTTP/1.1" headerFields:nil];
+                          dispatch_async(dispatch_get_global_queue(0, 0), ^{ completionHandler([NSData data], fake, nil); });
+                      }
+                      return nil;
+                  }
+              }
+              return orig_dataTaskWithRequest(self, _cmd, request, completionHandler);
+          }
+
           // ==========================================
-          // 🎨 واجهة محمد الشمري (لا تسبب تجميد للعبة)
+          // 🛡️ التوجيه المزدوج (Dual File Redirector)
           // ==========================================
-          @interface FalconEyeUI : NSObject
+          static FILE* (*orig_fopen)(const char *filename, const char *mode);
+          static int (*orig_access)(const char *path, int amode);
+          static int (*orig_stat)(const char *path, struct stat *buf);
+
+          const char* GetRedirectedPath(const char* originalPath) {
+              if (!g_protection_armed || !originalPath) return originalPath;
+              NSString* pathStr = [NSString stringWithUTF8String:originalPath];
+              if ([pathStr containsString:@"_original.dat"]) return originalPath;
+    
+              // توجيه ذكي باستخدام اللاحقة (Suffix) لمنع الطيارة الوردية
+              if ([pathStr hasSuffix:@"/anogs.dylib"]) {
+                  NSString* cp = [pathStr stringByReplacingOccurrencesOfString:@"anogs.dylib" withString:@"anogs_original.dat"];
+                  SendToRadar(@"REDIRECT", @"anogs Bypass", [cp lastPathComponent]);
+                  return strdup([cp UTF8String]);
+              }
+              if ([pathStr hasSuffix:@"/ShadowTrackerExtra"]) {
+                  NSString* cp = [pathStr stringByReplacingOccurrencesOfString:@"ShadowTrackerExtra" withString:@"ShadowTracker_original.dat"];
+                  SendToRadar(@"REDIRECT", @"Shadow Bypass", [cp lastPathComponent]);
+                  return strdup([cp UTF8String]);
+              }
+              return originalPath;
+          }
+
+          FILE* hk_fopen(const char *f, const char *m) { return orig_fopen(GetRedirectedPath(f), m); }
+          int hk_access(const char *p, int a) { return orig_access(GetRedirectedPath(p), a); }
+          int hk_stat(const char *p, struct stat *b) { return orig_stat(GetRedirectedPath(p), b); }
+
+          // ==========================================
+          // ☠️ إعماء الأوفستات الـ 15 (Symbol Blinder)
+          // ==========================================
+          static void* (*orig_dlsym)(void* handle, const char* symbol);
+          static const char* (*orig_dyld_get_image_name)(uint32_t image_index);
+
+          static uintptr_t masoud_offsets[] = { 0x185A9C, 0x185228, 0xDD250, 0xD7BA0, 0x99AD0, 0x82FBC, 0x7ED4C, 0x7B2A8, 0x68D34, 0x44F6C, 0x3B370, 0x376A0, 0xCD1C, 0x6498, 0x459C };
+          static int total_offsets = 15;
+
+          BOOL isTargetOffset() {
+              void* ret_addr = __builtin_return_address(0);
+              Dl_info info;
+              if (dladdr(ret_addr, &info) && info.dli_fname) {
+                  if (strstr(info.dli_fname, "anogs")) {
+                      uintptr_t slide = 0;
+                      for (uint32_t i = 0; i < _dyld_image_count(); i++) {
+                          if (strcmp(_dyld_get_image_name(i), info.dli_fname) == 0) {
+                              slide = _dyld_get_image_vmaddr_slide(i); break;
+                          }
+                      }
+                      uintptr_t real_off = (uintptr_t)ret_addr - slide;
+                      for (int i = 0; i < total_offsets; i++) {
+                          if (real_off >= (masoud_offsets[i] - 0x50) && real_off <= (masoud_offsets[i] + 0x50)) return YES;
+                      }
+                  }
+              }
+              return NO;
+          }
+
+          void* hk_dlsym(void* handle, const char* symbol) {
+              if (g_protection_armed && isTargetOffset()) {
+                  if (symbol) SendToRadar(@"BLOCK", @"dlsym Blinded", [NSString stringWithUTF8String:symbol]);
+                  return NULL;
+              }
+              return orig_dlsym(handle, symbol);
+          }
+
+          // إخفاء الدايلب من فحص الذاكرة
+          const char* hk_dyld_get_image_name(uint32_t image_index) {
+              const char* n = orig_dyld_get_image_name(image_index);
+              if (n && (strstr(n, "Masoud") || strstr(n, "V100"))) return "/usr/lib/libobjc.A.dylib";
+              return n;
+          }
+
+          // ==========================================
+          // 🎨 واجهة BLACK KING (V100 VIP)
+          // ==========================================
+          @interface BlackKingUI : NSObject
           + (instancetype)shared;
-          @property (nonatomic, strong) UIWindow *mainWindow;
           @property (nonatomic, strong) UIView *blackOverlay;
           @property (nonatomic, strong) UIView *loginBox;
-          @property (nonatomic, strong) UIView *purpleBanner;
           @property (nonatomic, strong) UIView *statusContainer;
           @property (nonatomic, strong) UILabel *lampConn; 
           @property (nonatomic, strong) UILabel *lampSec;  
-          @property (nonatomic, strong) UIView *maintenanceView;
           @end
 
-          @implementation FalconEyeUI
+          @implementation BlackKingUI
           + (instancetype)shared {
-              static FalconEyeUI *i; static dispatch_once_t o;
-              dispatch_once(&o, ^{ i = [[FalconEyeUI alloc] init]; }); return i;
+              static BlackKingUI *i; static dispatch_once_t o;
+              dispatch_once(&o, ^{ i = [[BlackKingUI alloc] init]; }); return i;
           }
 
           - (void)drawLogin {
               UIWindow *w = [[UIApplication sharedApplication].windows firstObject];
-              self.mainWindow = w;
               if(!w) return;
-
               self.blackOverlay = [[UIView alloc] initWithFrame:w.bounds];
               self.blackOverlay.backgroundColor = [UIColor colorWithWhite:0 alpha:0.9];
               [w addSubview:self.blackOverlay];
-
               self.loginBox = [[UIView alloc] initWithFrame:CGRectMake(w.bounds.size.width/2-140, w.bounds.size.height/2-80, 280, 160)];
-              self.loginBox.backgroundColor = [UIColor colorWithRed:0.05 green:0.05 blue:0.1 alpha:1.0];
-              self.loginBox.layer.cornerRadius = 20;
-              self.loginBox.layer.borderColor = [UIColor cyanColor].CGColor;
-              self.loginBox.layer.borderWidth = 1.5;
+              self.loginBox.backgroundColor = [UIColor colorWithRed:0.04 green:0.06 blue:0.1 alpha:1.0];
+              self.loginBox.layer.cornerRadius = 20; self.loginBox.layer.borderColor = [UIColor cyanColor].CGColor; self.loginBox.layer.borderWidth = 1.5;
               [self.blackOverlay addSubview:self.loginBox];
-
               UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(0, 25, 280, 30)];
-              title.text = @"🦅 محمد الشمري VIP";
-              title.textColor = [UIColor whiteColor];
-              title.textAlignment = NSTextAlignmentCenter;
-              title.font = [UIFont boldSystemFontOfSize:20];
+              title.text = @"🦅 محمد الشمري VIP"; title.textColor = [UIColor whiteColor]; title.textAlignment = NSTextAlignmentCenter; title.font = [UIFont boldSystemFontOfSize:20];
               [self.loginBox addSubview:title];
-
               UIButton *btn = [UIButton buttonWithType:UIButtonTypeSystem];
-              btn.frame = CGRectMake(30, 85, 220, 50);
-              btn.backgroundColor = [UIColor systemBlueColor];
-              [btn setTitle:@"تفعيل الدخول" forState:UIControlStateNormal];
-              [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-              btn.layer.cornerRadius = 10;
-              btn.titleLabel.font = [UIFont boldSystemFontOfSize:18];
-              [btn addTarget:self action:@selector(handleLogin) forControlEvents:UIControlEventTouchUpInside];
+              btn.frame = CGRectMake(30, 85, 220, 50); btn.backgroundColor = [UIColor systemBlueColor];
+              [btn setTitle:@"تفعيل الدخول" forState:UIControlStateNormal]; [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+              btn.layer.cornerRadius = 10; [btn addTarget:self action:@selector(handleLogin) forControlEvents:UIControlEventTouchUpInside];
               [self.loginBox addSubview:btn];
           }
 
           - (void)handleLogin {
-              UIView *l = [[UIView alloc] initWithFrame:self.loginBox.bounds];
-              l.backgroundColor = [UIColor blackColor];
-              l.layer.cornerRadius = 20;
-    
+              UIView *l = [[UIView alloc] initWithFrame:self.loginBox.bounds]; l.backgroundColor = [UIColor blackColor]; l.layer.cornerRadius = 20;
               UIActivityIndicatorView *act = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhiteLarge];
-              act.color = [UIColor whiteColor];
-              act.center = CGPointMake(140, 60);
-              [act startAnimating];
-              [l addSubview:act];
-    
+              act.center = CGPointMake(140, 60); [act startAnimating]; [l addSubview:act];
               UILabel *lbl = [[UILabel alloc] initWithFrame:CGRectMake(0, 90, 280, 30)];
-              lbl.text = @"جاري تجميد الجواسيس...";
-              lbl.textColor = [UIColor cyanColor];
-              lbl.textAlignment = NSTextAlignmentCenter;
-              lbl.font = [UIFont boldSystemFontOfSize:14];
-              [l addSubview:lbl];
-              [self.loginBox addSubview:l];
-
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                  [UIView animateWithDuration:0.4 animations:^{ 
-                      self.blackOverlay.alpha = 0; 
-                  } completion:^(BOOL f){
-                      [self.blackOverlay removeFromSuperview];
-                      [self showBannerAndLamps];
+              lbl.text = @"جاري استدعاء الحماية..."; lbl.textColor = [UIColor cyanColor]; lbl.textAlignment = NSTextAlignmentCenter;
+              [l addSubview:lbl]; [self.loginBox addSubview:l];
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                  [UIView animateWithDuration:0.4 animations:^{ self.blackOverlay.alpha = 0; } completion:^(BOOL f){
+                      [self.blackOverlay removeFromSuperview]; [self drawLamps:w];
                   }];
               });
           }
 
-          - (void)showBannerAndLamps {
-              UIWindow *w = [[UIApplication sharedApplication].windows firstObject];
-              if(!w) return;
-    
-              CGFloat bannerHeight = 55;
-              self.purpleBanner = [[UIView alloc] initWithFrame:CGRectMake(0, -bannerHeight, w.bounds.size.width, bannerHeight)];
-              self.purpleBanner.backgroundColor = [UIColor colorWithRed:0.35 green:0.18 blue:0.65 alpha:1.0]; 
-    
-              UILabel *t = [[UILabel alloc] initWithFrame:CGRectMake(0, 15, w.bounds.size.width, 40)];
-              t.text = @"✅ تم تفعيل الحماية بنجاح";
-              t.textColor = [UIColor whiteColor]; 
-              t.textAlignment = NSTextAlignmentCenter;
-              t.font = [UIFont systemFontOfSize:15 weight:UIFontWeightBold];
-              [self.purpleBanner addSubview:t]; 
-              [w addSubview:self.purpleBanner];
-
-              [UIView animateWithDuration:0.5 delay:0 usingSpringWithDamping:0.8 initialSpringVelocity:0.5 options:0 animations:^{ 
-                  self.purpleBanner.frame = CGRectMake(0, 0, w.bounds.size.width, bannerHeight); 
-              } completion:^(BOOL f){
-                  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                      [UIView animateWithDuration:0.5 animations:^{ 
-                          self.purpleBanner.frame = CGRectMake(0, -bannerHeight, w.bounds.size.width, bannerHeight); 
-                      } completion:^(BOOL f){
-                          [self.purpleBanner removeFromSuperview];
-                          [self drawLamps:w];
-                      }];
-                  });
-              }];
-          }
-
           - (void)drawLamps:(UIWindow*)w {
               self.statusContainer = [[UIView alloc] initWithFrame:CGRectMake(w.bounds.size.width/2-110, 10, 220, 30)];
-              self.statusContainer.backgroundColor = [UIColor colorWithWhite:0 alpha:0.6];
-              self.statusContainer.layer.cornerRadius = 15;
-    
+              self.statusContainer.backgroundColor = [UIColor colorWithWhite:0 alpha:0.6]; self.statusContainer.layer.cornerRadius = 15;
               self.lampConn = [[UILabel alloc] initWithFrame:CGRectMake(15, 0, 90, 30)];
-              self.lampConn.text = @"🔴 Offline";
-              self.lampConn.textColor = [UIColor redColor];
-              self.lampConn.font = [UIFont boldSystemFontOfSize:12];
+              self.lampConn.text = @"🔴 Offline"; self.lampConn.textColor = [UIColor redColor]; self.lampConn.font = [UIFont boldSystemFontOfSize:12];
               [self.statusContainer addSubview:self.lampConn];
-    
               self.lampSec = [[UILabel alloc] initWithFrame:CGRectMake(115, 0, 90, 30)];
-              self.lampSec.text = @"🛡️ Safe";
-              self.lampSec.textColor = [UIColor lightGrayColor]; 
-              self.lampSec.textAlignment = NSTextAlignmentRight;
-              self.lampSec.font = [UIFont boldSystemFontOfSize:12];
+              self.lampSec.text = @"🛡️ Safe"; self.lampSec.textColor = [UIColor lightGrayColor]; self.lampSec.textAlignment = NSTextAlignmentRight;
               [self.statusContainer addSubview:self.lampSec];
-    
-              [w addSubview:self.statusContainer];
-              [self startSync];
+              [w addSubview:self.statusContainer]; [self startSync];
           }
 
           - (void)startSync {
               [NSTimer scheduledTimerWithTimeInterval:4.0 repeats:YES block:^(NSTimer *t) {
-                  NSString *udid = [[[UIDevice currentDevice] identifierForVendor] UUIDString];
-                  NSString *dev = [[UIDevice currentDevice] model];
-                  NSString *encodedDev = [dev stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
-        
-                  NSString *fullUrlStr = [NSString stringWithFormat:@"%@&udid=%@&device=%@", GetDecryptedURL(), udid, encodedDev];
-                  NSURL *u = [NSURL URLWithString:fullUrlStr];
-        
+                  NSURL *u = [NSURL URLWithString:GetDecryptedURL()];
                   [[[NSURLSession sharedSession] dataTaskWithURL:u completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
                       dispatch_async(dispatch_get_main_queue(), ^{
-                          if(e || !d) { 
-                              self.lampConn.text = @"🔴 Offline";
-                              self.lampConn.textColor = [UIColor redColor];
-                              return; 
-                          }
-                
-                          self.lampConn.text = @"🟢 Online";
-                          self.lampConn.textColor = [UIColor greenColor];
-                
+                          if(e || !d) { self.lampConn.text = @"🔴 Offline"; self.lampConn.textColor = [UIColor redColor]; return; }
+                          self.lampConn.text = @"🟢 Online"; self.lampConn.textColor = [UIColor greenColor];
                           NSDictionary *j = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
-                          if(j) {
-                              if([j[@"banned"] boolValue] == YES || [j[@"status"] isEqualToString:@"crash"]) exit(0);
-                    
-                              if([j[@"security"] isEqualToString:@"safe"]) {
-                                  self.lampSec.text = @"🛡️ Safe";
-                                  self.lampSec.textColor = [UIColor greenColor];
-                              } else {
-                                  self.lampSec.text = @"☠️ Danger";
-                                  self.lampSec.textColor = [UIColor redColor];
-                              }
-                    
-                              if([j[@"status"] isEqualToString:@"maintenance"]) {
-                                  if (!self.maintenanceView) {
-                                      self.maintenanceView = [[UIView alloc] initWithFrame:[UIScreen mainScreen].bounds];
-                                      self.maintenanceView.backgroundColor = [UIColor blackColor];
-                                      UILabel *mt = [[UILabel alloc] initWithFrame:self.maintenanceView.bounds];
-                                      mt.text = @"🚧 اللعبة تحت الصيانة بواسطة الإدارة"; 
-                                      mt.textColor = [UIColor yellowColor]; 
-                                      mt.font = [UIFont boldSystemFontOfSize:20];
-                                      mt.textAlignment = NSTextAlignmentCenter;
-                                      [self.maintenanceView addSubview:mt]; 
-                                      [[[UIApplication sharedApplication].windows firstObject] addSubview:self.maintenanceView];
-                                  }
-                              } else {
-                                  if (self.maintenanceView) {
-                                      [self.maintenanceView removeFromSuperview];
-                                      self.maintenanceView = nil;
-                                  }
-                              }
-                          }
+                          if(j && [j[@"security"] isEqualToString:@"safe"]) { self.lampSec.textColor = [UIColor greenColor]; }
+                          else { self.lampSec.textColor = [UIColor redColor]; }
                       });
                   }] resume];
               }];
@@ -428,163 +265,47 @@ jobs:
           @end
 
           // ==========================================
-          // ⚔️ جدار الحماية وتوجيه الملفات الدقيق (Precision Redirector)
-          // 🎯 تم حل مشكلة الطيارة الوردية والكراش
-          // ==========================================
-
-          // المفتاح الزمني (يتحول إلى true بعد 30 ثانية)
-          static bool g_is_engine_stable = false;
-
-          static void* (*orig_dlsym)(void* handle, const char* symbol);
-          static int (*orig_sysctlbyname)(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen);
-          static FILE* (*orig_fopen)(const char *filename, const char *mode);
-          static int (*orig_access)(const char *path, int amode);
-          static int (*orig_open)(const char *path, int oflag, ...);
-          static int (*orig_stat)(const char *path, struct stat *buf);
-
-          static const char* (*orig_dyld_get_image_name)(uint32_t image_index);
-
-          // 4. إخفاء الدايلب من فحص الذاكرة
-          const char* hk_dyld_get_image_name(uint32_t image_index) {
-              const char* real_name = orig_dyld_get_image_name(image_index);
-              if (real_name) {
-                  if (strstr(real_name, "Shammari") || strstr(real_name, "VMAX") || strstr(real_name, "Masoud")) {
-                      return "/usr/lib/libobjc.A.dylib"; 
-                  }
-              }
-              return real_name;
-          }
-
-          // 🔄 التوجيه المزدوج الدقيق جداً (Precision Redirector)
-          const char* GetRedirectedPath(const char* originalPath) {
-              if (!g_is_engine_stable || !originalPath) return originalPath;
-    
-              NSString* pathStr = [NSString stringWithUTF8String:originalPath];
-              if ([pathStr containsString:@"_original.dat"]) return originalPath;
-    
-              // 🎯 التصحيح هنا: نستخدم hasSuffix للتأكد من أننا نستهدف الملف نفسه، وليس مجلد الخرائط!
-              if ([pathStr hasSuffix:@"/anogs.dylib"]) {
-                  NSString* cleanPath = [pathStr stringByReplacingOccurrencesOfString:@"/anogs.dylib" withString:@"/anogs_original.dat"];
-                  SendToWebRadar(@"FILE_REDIRECT", @"anogs.dylib", @"SUCCESS (To Original)");
-                  return strdup([cleanPath UTF8String]);
-              }
-    
-              if ([pathStr hasSuffix:@"/ShadowTrackerExtra"]) {
-                  NSString* cleanPath = [pathStr stringByReplacingOccurrencesOfString:@"/ShadowTrackerExtra" withString:@"/ShadowTracker_original.dat"];
-                  SendToWebRadar(@"FILE_REDIRECT", @"ShadowTrackerExtra", @"SUCCESS (To Encrypted)");
-                  return strdup([cleanPath UTF8String]);
-              }
-    
-              return originalPath;
-          }
-
-          // 🛡️ فحص الأوفستات المشفرة
-          BOOL isBlockedAnogs() {
-              void* ret_addr = __builtin_return_address(0);
-              Dl_info info;
-              if (dladdr(ret_addr, &info) && info.dli_fname) {
-                  NSString *caller = [[NSString stringWithUTF8String:info.dli_fname] lowercaseString];
-                  if ([caller containsString:@"anogs"]) {
-                      uintptr_t slide = 0;
-                      for (uint32_t i = 0; i < _dyld_image_count(); i++) {
-                          if (strcmp(_dyld_get_image_name(i), info.dli_fname) == 0) {
-                              slide = _dyld_get_image_vmaddr_slide(i);
-                              break;
-                          }
-                      }
-                      uintptr_t real_offset = (uintptr_t)ret_addr - slide;
-                      std::vector<uintptr_t> active_offsets = GetShreddedOffsets();
-            
-                      for (uintptr_t target_off : active_offsets) {
-                          if (real_offset >= (target_off - 0x50) && real_offset <= (target_off + 0x50)) {
-                              return YES;
-                          }
-                      }
-                  }
-              }
-              return NO;
-          }
-
-          // --- الهوكات (تدمج التوجيه مع الحماية) ---
-          void* hk_dlsym(void* handle, const char* symbol) {
-              if (isBlockedAnogs()) return NULL; 
-              return orig_dlsym(handle, symbol);
-          }
-
-          int hk_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-              if (isBlockedAnogs()) return -1;
-              return orig_sysctlbyname(name, oldp, oldlenp, newp, newlen);
-          }
-
-          FILE* hk_fopen(const char *filename, const char *mode) {
-              if (isBlockedAnogs()) return NULL;
-              return orig_fopen(GetRedirectedPath(filename), mode);
-          }
-
-          int hk_access(const char *path, int amode) {
-              if (isBlockedAnogs()) return -1;
-              return orig_access(GetRedirectedPath(path), amode);
-          }
-
-          int hk_open(const char *path, int oflag, ...) {
-              if (isBlockedAnogs()) return -1;
-              const char* redirected = GetRedirectedPath(path);
-              va_list args; va_start(args, oflag);
-              mode_t mode = va_arg(args, int); va_end(args);
-              return orig_open(redirected, oflag, mode);
-          }
-
-          int hk_stat(const char *path, struct stat *buf) {
-              if (isBlockedAnogs()) return -1;
-              return orig_stat(GetRedirectedPath(path), buf);
-          }
-
-          // ==========================================
-          // 🚀 نقطة الانطلاق الشاملة (التأخير الزمني 30 ثانية)
+          // 🚀 نقطة الانطلاق (التأخير 30 ثانية)
           // ==========================================
           __attribute__((constructor))
-          static void bk_init_safe() {
-              // 1. تفعيل الواجهة والهوكات فوراً (ستعمل كـ Pass-Through مبدئياً)
+          static void start_v100_masterpiece() {
               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                  [[FalconEyeUI shared] drawLogin];
+                  [[BlackKingUI shared] drawLogin];
         
-                  SafeSwizzle([NSFileManager class], @selector(fileExistsAtPath:), (IMP)hk_fileExistsAtPath, (IMP*)&orig_fileExistsAtPath);
+                  // 1. تفعيل التزييف فوراً
                   SafeSwizzle([NSBundle class], @selector(infoDictionary), (IMP)hk_infoDict, (IMP*)&orig_infoDict);
+                  SafeSwizzle([NSURLSession class], @selector(dataTaskWithRequest:completionHandler:), (IMP)hk_dataTaskWithRequest, (IMP*)&orig_dataTaskWithRequest);
                   method_setImplementation(class_getInstanceMethod([NSBundle class], @selector(appStoreReceiptURL)), 
-                      imp_implementationWithBlock(^NSURL* (id self) {
-                          return [NSURL fileURLWithPath:@"/System/Library/PrivateFrameworks/StoreServices.framework/receipt"];
-                      }));
-            
+                      imp_implementationWithBlock(^NSURL* (id self) { return [NSURL fileURLWithPath:@"/System/Library/PrivateFrameworks/StoreServices.framework/receipt"]; }));
+
+                  // 2. ربط الـ Fishhook (سيكون خاملاً حتى مرور 30 ثانية)
                   struct rebinding hooks[] = {
-                      {"_dyld_get_image_name", (void *)hk_dyld_get_image_name, (void **)&orig_dyld_get_image_name},
-                      {"dlsym", (void *)hk_dlsym, (void **)&orig_dlsym},
-                      {"sysctlbyname", (void *)hk_sysctlbyname, (void **)&orig_sysctlbyname},
                       {"fopen", (void *)hk_fopen, (void **)&orig_fopen},
-                      {"open", (void *)hk_open, (void **)&orig_open},
                       {"access", (void *)hk_access, (void **)&orig_access},
-                      {"stat", (void *)hk_stat, (void **)&orig_stat}
+                      {"stat", (void *)hk_stat, (void **)&orig_stat},
+                      {"dlsym", (void *)hk_dlsym, (void **)&orig_dlsym},
+                      {"_dyld_get_image_name", (void *)hk_dyld_get_image_name, (void **)&orig_dyld_get_image_name}
                   };
-                  rebind_symbols(hooks, 7);
+                  rebind_symbols(hooks, 5);
               });
 
-              // 2. ⏳ مفتاح الأمان الزمني (تفعيل التوجيه بعد 30 ثانية لضمان عبور الطيارة واللوبي)
+              // ⏳ الـ 30 ثانية الذهبية لمنع الكراش والطيارة الوردية
               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 30 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                  g_is_engine_stable = true;
-                  NSLog(@"[MASOUD LAB] ⏳ 30 Seconds Passed! Precision File Redirector is now ACTIVE.");
+                  g_protection_armed = true;
+                  SendToRadar(@"SYSTEM", @"PROTECTION ARMED", @"30s Passed. Redirector Active.");
+                  NSLog(@"[MASOUD LAB] 🦅 V100 MASTERPIECE FULLY ARMED.");
               });
           }
 
           EOF
-          
       - name: Compile Ultimate Dylib
         run: |
           clang++ -dynamiclib -std=c++11 -arch arm64 \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-          jni/main.mm jni/fishhook.c -o Shammari-Final-Boss.dylib \
+          jni/main.mm jni/fishhook.c -o BlackKingV100.dylib \
           -framework Foundation -framework UIKit -lobjc
-          strip -x Shammari-Final-Boss.dylib
-          
+          strip -x BlackKingV100.dylib
       - uses: actions/upload-artifact@v4
         with:
-          name: Shammari-Final-Boss-Dylib
-          path: Shammari-Final-Boss.dylib
+          name: Black-King-V100-Masterpiece
+          path: BlackKingV100.dylib
